@@ -1,3 +1,4 @@
+console.log("SERVER BOOTING");
 import express from "express";
 import path from "path";
 import https from "https";
@@ -7,6 +8,8 @@ const app = express();
 const BACKEND_URL =
     process.env.BACKEND_URL ||
     "https://bluecrestpremium-production.up.railway.app";
+
+console.log("REGISTERING API PROXY");
 
 app.use("/api", (req, res) => {
 
@@ -41,4 +44,12 @@ app.use("/api", (req, res) => {
             error: "Backend unavailable"
         });
     });
+});
+
+const PORT = process.env.PORT || 3000;
+
+console.log("DIST PATH:", distPath);
+
+app.listen(PORT, () => {
+  console.log(`Frontend listening on port ${PORT}`);
 });
