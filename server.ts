@@ -24,11 +24,21 @@ app.use("/api", (req, res) => {
   const backend = new URL(BACKEND_URL);
 
   const options = {
-    hostname: backend.hostname,
-    path: `/api${req.url}`,
-    method: req.method,
-    headers: req.headers
-  };
+  hostname: backend.hostname,
+  port: 443,
+  path: `/api${req.url}`,
+  method: req.method,
+  headers: {
+    "content-type":
+      req.headers["content-type"] || "application/json",
+
+    "accept":
+      req.headers["accept"] || "*/*",
+
+    "authorization":
+      req.headers["authorization"] || ""
+  }
+};
 
   console.log("OPTIONS =", options);
 
