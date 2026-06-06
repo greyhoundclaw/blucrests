@@ -259,12 +259,18 @@ export default function App() {
       accountNumber: userProfile.account_number || userProfile.accountNumber,
       branchCode: userProfile.branch_code || userProfile.branchCode
     };
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('auth_user', JSON.stringify(mappedUser));
-    setCurrentUser(mappedUser);
-    setBalance(mappedUser.balance);
-    setTransferCount(mappedUser.transfer_count || 0);
-    setIsLoggedIn(true);
+  const userString = JSON.stringify(mappedUser);
+
+console.log('auth_user size:', userString.length);
+console.log('mappedUser:', mappedUser);
+
+localStorage.setItem('auth_token', token);
+localStorage.setItem('auth_user', userString);
+
+setCurrentUser(mappedUser);
+setBalance(mappedUser.balance);
+setTransferCount(mappedUser.transfer_count || 0);
+setIsLoggedIn(true);
   };
 
   const handleLogout = () => {
