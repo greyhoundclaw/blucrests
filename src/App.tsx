@@ -28,6 +28,28 @@ import { cn } from './lib/utils';
 import { FileText, User as UserIcon, CreditCard, Bell, History, Shield, Key } from 'lucide-react';
 
 export default function App() {
+useEffect(() => {
+  try {
+    const saved = localStorage.getItem('auth_user');
+
+    if (!saved) return;
+
+    const user = JSON.parse(saved);
+
+    if (user.id_front_image || user.id_back_image) {
+      delete user.id_front_image;
+      delete user.id_back_image;
+
+      localStorage.setItem(
+        'auth_user',
+        JSON.stringify(user)
+      );
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}, []);
+  
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('auth_user');
     return saved ? JSON.parse(saved) : USER_DATA;
@@ -249,16 +271,24 @@ export default function App() {
   }, [pendingTransfer, currentUser, syncUserData]);
 
   const handleUserLogin = (userProfile: any, token: string) => {
-    const mappedUser = {
-      ...userProfile,
-      firstName: userProfile.first_name || userProfile.firstName,
-      lastName: userProfile.last_name || userProfile.lastName,
-      preferredCurrency: userProfile.preferred_currency || userProfile.preferredCurrency,
-      transferPin: userProfile.transfer_pin !== undefined ? userProfile.transfer_pin : userProfile.transferPin,
-      kycStatus: userProfile.kyc_status || userProfile.kycStatus,
-      accountNumber: userProfile.account_number || userProfile.accountNumber,
-      branchCode: userProfile.branch_code || userProfile.branchCode
-    };
+    const {
+  id_front_image,
+  id_back_image,
+  ...cleanUserProfile
+} = userProfile;
+
+const mappedUser = {
+  ...cleanUserProfile,
+  firstName: cleanUserProfile.first_name || cleanUserProfile.firstName,
+  lastName: cleanUserProfile.last_name || cleanUserProfile.lastName,
+  preferredCurrency: cleanUserProfile.preferred_currency || cleanUserProfile.preferredCurrency,
+  transferPin: cleanUserProfile.transfer_pin !== undefined
+    ? cleanUserProfile.transfer_pin
+    : cleanUserProfile.transferPin,
+  kycStatus: cleanUserProfile.kyc_status || cleanUserProfile.kycStatus,
+  accountNumber: cleanUserProfile.account_number || cleanUserProfile.accountNumber,
+  branchCode: cleanUserProfile.branch_code || cleanUserProfile.branchCode
+};
 Object.keys(userProfile).forEach(key => {
   const size = JSON.stringify(userProfile[key] || '').length;
   console.log(key, size);
