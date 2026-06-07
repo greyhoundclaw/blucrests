@@ -407,7 +407,11 @@ setIsLoggedIn(true);
             onKycSubmitted={(newStatus) => {
               setCurrentUser((prev: any) => {
                 const updated = { ...prev, kycStatus: newStatus };
-                localStorage.setItem('auth_user', JSON.stringify(updated));
+
+delete updated.id_front_image;
+delete updated.id_back_image;
+
+localStorage.setItem('auth_user', JSON.stringify(updated));
                 return updated;
               });
             }}
