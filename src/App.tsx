@@ -160,7 +160,7 @@ useEffect(() => {
               accountNumber: data.account_number,
               branchCode: data.branch_code
             };
-            localStorage.setItem('auth_user', JSON.stringify(updated));
+         saveUser(updated);
             return updated;
           });
         }
@@ -378,7 +378,7 @@ setIsLoggedIn(true);
               onPinCreated={(newPin) => {
                 setCurrentUser((prev: any) => {
                   const updated = { ...prev, transferPin: newPin };
-                  localStorage.setItem('auth_user', JSON.stringify(updated));
+                  saveUser(updated);
                   return updated;
                 });
               }}
@@ -423,7 +423,7 @@ setIsLoggedIn(true);
 delete updated.id_front_image;
 delete updated.id_back_image;
 
-localStorage.setItem('auth_user', JSON.stringify(updated));
+saveUser(updated);
                 return updated;
               });
             }}
@@ -457,7 +457,7 @@ localStorage.setItem('auth_user', JSON.stringify(updated));
 delete updated.id_front_image;
 delete updated.id_back_image;
 
-localStorage.setItem('auth_user', JSON.stringify(updated));
+saveUser(updated);
             }}
           />
         );
