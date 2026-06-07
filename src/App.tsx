@@ -437,9 +437,11 @@ setIsLoggedIn(true);
             onPinUpdated={(newPin) => {
               setCurrentUser((prev: any) => {
                 const updated = { ...prev, transferPin: newPin };
-                localStorage.setItem('auth_user', JSON.stringify(updated));
-                return updated;
-              });
+
+delete updated.id_front_image;
+delete updated.id_back_image;
+
+localStorage.setItem('auth_user', JSON.stringify(updated));
             }}
           />
         );
