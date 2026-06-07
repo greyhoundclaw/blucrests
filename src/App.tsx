@@ -259,6 +259,11 @@ export default function App() {
       accountNumber: userProfile.account_number || userProfile.accountNumber,
       branchCode: userProfile.branch_code || userProfile.branchCode
     };
+Object.keys(userProfile).forEach(key => {
+  const size = JSON.stringify(userProfile[key] || '').length;
+  console.log(key, size);
+});
+    
   const userString = JSON.stringify(mappedUser);
 
 console.log('auth_user size:', userString.length);
