@@ -1,0 +1,184 @@
+const activityService =
+    require('../services/activity.service');
+
+const transferService =
+    require('../services/transfer.service');
+
+const {
+    successResponse,
+    errorResponse
+} = require('../utils/response');
+
+async function create(req, res, body) {
+
+    console.log(
+        'TRANSFER BODY:',
+        body
+    );
+
+    console.log(
+        'AUTH USER:',
+        req.user
+    );
+
+    try {
+
+        console.log(
+            'CALLING TRANSFER SERVICE'
+        );
+
+        const transfers =
+            await transferService
+                .createTransfer(
+                    req.user,
+                    body
+                );
+
+        await activityService.logActivity({
+            user_id: req.user.id,
+            type: 'TRANSFER_CREATED',
+            description:
+                `Transfer of ${body.amount} created`
+        });
+
+        return successResponse(
+            res,
+            transfers,
+            'Transfer created successfully',
+            201
+        );
+
+    } catch (error) {
+
+        console.error(
+            'TRANSFER ERROR:',
+            error
+        );
+
+        return errorResponse(
+            res,
+            error.message,
+            400
+        );
+    }
+}
+
+async function getAll(req, res) {
+
+    try {
+
+        console.log(
+            'FETCHING TRANSFERS'
+        );
+
+        const transfers =
+            await transferService
+                .fetchTransfers(req.user);
+
+        return successResponse(
+            res,
+            transfers,
+            'Transfers fetched successfully'
+        );
+
+    } catch (error) {
+
+        console.error(
+            'GET TRANSFERS ERROR:',
+            error
+        );
+
+        return errorResponse(
+            res,
+            error.message,
+            500
+        );
+    }
+}
+
+async function updateStatus(
+    req,
+    res,
+    body,
+    transferId
+) {
+
+    try {
+
+        const updatedTransfer =
+            await transferService
+                .changeTransferStatus(
+                    transferId,
+                    body.status
+                );
+
+        await activityService.logActivity({
+            user_id:
+                req.user
+                    ? req.user.id
+                    : null,
+            type:
+                'TRANSFER_STATUS_UPDATED',
+            description:
+                `Transfer ${transferId} updated to ${body.status}`
+        });
+
+        return successResponse(
+            res,
+            updatedTransfer,
+            'Transfer status updated'
+        );
+
+    } catch (error) {
+
+        console.error(
+            'UPDATE TRANSFER ERROR:',
+            error
+        );
+
+        return errorResponse(
+            res,
+            error.message,
+            500
+        );
+    }
+}
+
+
+async function receipt(
+    req,
+    res,
+    transferId
+) {
+
+    try {
+
+        const receipt =
+            await transferService
+                .getTransferReceipt(
+                    transferId,
+                    req.user
+                );
+
+        return successResponse(
+            res,
+            receipt,
+            'Receipt fetched successfully'
+        );
+
+    } catch (error) {
+
+        return errorResponse(
+            res,
+            error.message,
+            error.message === 'Receipt access denied' ? 403 : 400
+        );
+    }
+}
+
+module.exports = {
+    create,
+    getAll,
+    updateStatus,
+    receipt
+};

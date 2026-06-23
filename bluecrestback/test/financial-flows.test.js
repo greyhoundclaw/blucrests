@@ -1,0 +1,313 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const bcrypt = require('bcrypt');
+
+const databasePath = path.join(__dirname, 'financial-flows.test.db');
+fs.rmSync(databasePath, { force: true });
+process.env.SQLITE_DB_PATH = databasePath;
+delete process.env.DATABASE_URL;
+
+const initializeDatabase = require('../src/database/init');
+const db = require('../src/database/db');
+const sqlite = require('../src/database/sqlite');
+const userRepository = require('../src/repositories/user.repository');
+const transferRepository = require('../src/repositories/transfer.repository');
+const transactionRepository = require('../src/repositories/transaction.repository');
+const loanRepository = require('../src/repositories/loan.repository');
+const transferService = require('../src/services/transfer.service');
+const ledgerService = require('../src/services/ledger.service');
+const loanService = require('../src/services/loan.service');
+const withdrawalService = require('../src/services/withdrawal.service');
+const reconciliationService = require('../src/services/reconciliation.service');
+const notificationService = require('../src/services/notification.service');
+const emailService = require('../src/services/email.service');
+
+async function createUser(id, accountNumber, email, pin = '1234') {
+    const password = await bcrypt.hash('Password123!', 4);
+    const transferPin = await bcrypt.hash(pin, 4);
+
+    await db.query(
+        `INSERT INTO users (
+            id, account_number, first_name, last_name, email, password,
+            preferred_currency, balance, transfer_pin, transfer_flow,
+            kyc_status, status, role
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'PENDING', 'VERIFIED', 'ACTIVE', 'USER')`,
+        [id, accountNumber, 'Test', `User${id}`, email, password, 'USD', transferPin]
+    );
+
+    await ledgerService.postEntry({
+        user_id: id,
+        reference: `OPENING-${id}`,
+        type: 'CREDIT',
+        category: 'opening_balance',
+        amount: 1000,
+        currency: 'USD',
+        status: 'COMPLETED',
+        description: 'Test opening balance'
+    });
+
+    return userRepository.findUserById(id);
+}
+
+async function verificationToken(userId, suffix) {
+    const result = await db.query(
+        `INSERT INTO transfer_verification_codes
+         (user_id, code_hash, code_last_four, status, created_by)
+         VALUES (?, 'test-hash', '0000', 'ACTIVE', 1)`,
+        [userId]
+    );
+    const codeId = Number(result.lastInsertRowid);
+    const token = `test-verification-${userId}-${suffix}`;
+
+    await db.query(
+        `INSERT INTO transfer_verification_sessions
+         (user_id, code_id, token, expires_at)
+         VALUES (?, ?, ?, ?)`,
+        [userId, codeId, token, new Date(Date.now() + 60_000).toISOString()]
+    );
+
+    return token;
+}
+
+test.before(async () => {
+    await initializeDatabase();
+    await createUser(2, '2000000002', 'sender@example.com');
+    await createUser(3, '2000000003', 'recipient@example.com');
+});
+
+test.after(() => {
+    sqlite.close();
+    fs.rmSync(databasePath, { force: true });
+});
+
+test('invalid transfer PIN creates no transfer or ledger entry', async () => {
+    const sender = await userRepository.findUserById(2);
+    const beforeTransfers = await transferRepository.getUserTransfers(sender.id);
+    const beforeTransactions = await transactionRepository.getUserTransactions(sender.id);
+
+    await assert.rejects(
+        transferService.createTransfer(sender, {
+            transfer_type: 'EXTERNAL',
+            recipient_name: 'Example Recipient',
+            recipient_bank: 'Example Bank',
+            recipient_account_number: '9999999999',
+            amount: 25,
+            pin: '9999',
+            verification_token: 'unused'
+        }),
+        /Invalid transfer PIN/
+    );
+
+    assert.equal((await transferRepository.getUserTransfers(sender.id)).length, beforeTransfers.length);
+    assert.equal((await transactionRepository.getUserTransactions(sender.id)).length, beforeTransactions.length);
+});
+
+test('invalid or unaffordable transfer amounts create no ledger entry', async () => {
+    const sender = await userRepository.findUserById(2);
+    const beforeTransactions = await transactionRepository.getUserTransactions(sender.id);
+
+    await assert.rejects(
+        transferService.createTransfer(sender, {
+            transfer_type: 'EXTERNAL',
+            amount: 'not-a-number'
+        }),
+        /greater than zero/
+    );
+
+    await assert.rejects(
+        transferService.createTransfer(sender, {
+            transfer_type: 'EXTERNAL',
+            amount: 5000,
+            pin: '1234'
+        }),
+        /Insufficient available balance/
+    );
+
+    assert.equal((await transactionRepository.getUserTransactions(sender.id)).length, beforeTransactions.length);
+});
+
+test('pending external transfer moves no money and completion debits exactly once', async () => {
+    const sender = await userRepository.findUserById(2);
+    const token = await verificationToken(sender.id, 'external');
+    const transfer = await transferService.createTransfer(sender, {
+        transfer_type: 'EXTERNAL',
+        recipient_name: 'Example Recipient',
+        recipient_bank: 'Example Bank',
+        recipient_account_number: '9999999999',
+        amount: 250,
+        description: 'External test',
+        pin: '1234',
+        verification_token: token
+    });
+
+    assert.equal(transfer.status, 'PENDING');
+    assert.equal(Number((await userRepository.findUserById(sender.id)).balance), 1000);
+
+    await transferService.completeTransfer(transfer.id);
+    await transferService.completeTransfer(transfer.id);
+
+    assert.equal(Number((await userRepository.findUserById(sender.id)).balance), 750);
+    const entries = (await transactionRepository.getUserTransactions(sender.id))
+        .filter(entry => entry.reference === `TXN-TRF-${transfer.id}-DEBIT`);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].status, 'COMPLETED');
+});
+
+test('rejecting a pending transfer moves no money', async () => {
+    const sender = await userRepository.findUserById(2);
+    const startingBalance = Number(sender.balance);
+    const token = await verificationToken(sender.id, 'rejection');
+    const transfer = await transferService.createTransfer(sender, {
+        transfer_type: 'EXTERNAL',
+        recipient_name: 'Rejected Recipient',
+        recipient_bank: 'Example Bank',
+        recipient_account_number: '8888888888',
+        amount: 20,
+        pin: '1234',
+        verification_token: token
+    });
+
+    await transferService.changeTransferStatus(transfer.id, 'REJECTED');
+
+    assert.equal(Number((await userRepository.findUserById(sender.id)).balance), startingBalance);
+    const entry = await transactionRepository.getTransactionByReference(
+        `TXN-TRF-${transfer.id}-DEBIT`
+    );
+    assert.equal(entry.status, 'DECLINED');
+});
+
+test('internal transfer debits sender and credits recipient exactly once', async () => {
+    const sender = await userRepository.findUserById(2);
+    const token = await verificationToken(sender.id, 'internal');
+    const transfer = await transferService.createTransfer(sender, {
+        transfer_type: 'INTERNAL',
+        recipient_account_number: '2000000003',
+        amount: 100,
+        description: 'Internal test',
+        pin: '1234',
+        verification_token: token
+    });
+
+    await transferService.completeTransfer(transfer.id);
+    await transferService.completeTransfer(transfer.id);
+
+    assert.equal(Number((await userRepository.findUserById(2)).balance), 650);
+    assert.equal(Number((await userRepository.findUserById(3)).balance), 1100);
+});
+
+test('loan disbursement credits exactly once', async () => {
+    const loan = await loanRepository.createLoan({
+        user_id: 2,
+        requested_amount: 500,
+        purpose: 'Test',
+        status: 'READY_FOR_DISBURSEMENT',
+        fee_status: 'PAID'
+    });
+
+    await loanService.disburseLoan(loan.id, 1);
+    await loanService.disburseLoan(loan.id, 1);
+
+    assert.equal(Number((await userRepository.findUserById(2)).balance), 1150);
+});
+
+test('withdrawal completion debits exactly once', async () => {
+    const user = await userRepository.findUserById(2);
+    const destination = await withdrawalService.saveDestination(user, {
+        method: 'PAYPAL',
+        label: 'Test PayPal',
+        details: { email: 'payments@example.com' },
+        is_preferred: true
+    });
+    const withdrawal = await withdrawalService.requestWithdrawal(user, {
+        destination_id: destination.id,
+        amount: 50
+    });
+
+    await withdrawalService.updateStatus({ id: 1 }, withdrawal.id, 'COMPLETED');
+    await withdrawalService.updateStatus({ id: 1 }, withdrawal.id, 'COMPLETED');
+
+    assert.equal(Number((await userRepository.findUserById(2)).balance), 1100);
+});
+
+test('withdrawal destinations reject passwords, PINs and full card credentials', async () => {
+    const user = await userRepository.findUserById(2);
+
+    await assert.rejects(
+        withdrawalService.saveDestination(user, {
+            method: 'PAYPAL',
+            label: 'Unsafe PayPal',
+            details: {
+                email: 'payments@example.com',
+                password: 'must-never-be-stored'
+            }
+        }),
+        /must not be collected or stored/
+    );
+
+    await assert.rejects(
+        withdrawalService.saveDestination(user, {
+            method: 'CARD',
+            label: 'Unsafe Card',
+            details: {
+                cardholder_name: 'Test User',
+                last_four: '1234',
+                provider_reference: 'processor-token',
+                cvv: '123'
+            }
+        }),
+        /must not be collected or stored/
+    );
+});
+
+test('completed ledger entries reconcile with stored balances', async () => {
+    const senderResult = await reconciliationService.reconcileUser(2);
+    const recipientResult = await reconciliationService.reconcileUser(3);
+
+    assert.equal(senderResult.reconciled, true);
+    assert.equal(recipientResult.reconciled, true);
+});
+
+test('admin notifications are delivered and can be marked read', async () => {
+    const result = await notificationService.sendNotification(
+        { id: 1, role: 'ADMIN' },
+        {
+            user_ids: [2],
+            title: 'Test notification',
+            message: 'Notification route data is working.',
+            type: 'INFO',
+            action_link: '/history'
+        }
+    );
+
+    assert.equal(result.recipient_count, 1);
+    const notifications = await notificationService.listForUser(2);
+    assert.equal(notifications[0].title, 'Test notification');
+    assert.equal(Number(notifications[0].is_read), 0);
+
+    const marked = await notificationService.markRead(notifications[0].id, 2);
+    assert.equal(Number(marked.is_read), 1);
+});
+
+test('email settings expose environment fallback and validate saved configuration', async () => {
+    process.env.SMTP_HOST = 'smtp.example.com';
+    process.env.SMTP_PORT = '587';
+    process.env.SMTP_USER = 'mailer@example.com';
+    process.env.SMTP_PASS = 'test-password';
+    process.env.MAIL_FROM = 'mailer@example.com';
+    process.env.MAIL_FROM_NAME = 'Blue Crest Test';
+
+    const settings = await emailService.getSettings();
+    assert.equal(settings.smtp_host, 'smtp.example.com');
+    assert.equal(settings.sender_email, 'mailer@example.com');
+    assert.equal(settings.has_password, true);
+
+    await assert.rejects(
+        emailService.saveSettings(
+            { id: 1 },
+            { smtp_host: '', smtp_port: 587, sender_email: 'not-an-email' }
+        ),
+        /SMTP host is required/
+    );
+});
