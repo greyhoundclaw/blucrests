@@ -635,6 +635,20 @@ CREATE TABLE IF NOT EXISTS cards (
            OR description LIKE 'Admin balance adjusted to %'
     `);
 
+    await db.query(`
+        UPDATE transactions
+        SET category = CASE WHEN type = 'CREDIT' THEN 'deposit' ELSE 'account_debit' END,
+            description = CASE
+                WHEN description IS NULL
+                  OR description = ''
+                  OR description IN ('Manual System Adjustment', 'Batch System Adjustment')
+                  THEN CASE WHEN type = 'CREDIT' THEN 'Account Deposit' ELSE 'Account Debit' END
+                ELSE description
+            END
+        WHERE category = 'manual_entry'
+           OR category = 'Manual Entry'
+    `);
+
     try {
         await db.query(`ALTER TABLE transfers ADD COLUMN verification_code_id INTEGER`);
     } catch (e) {

@@ -27,6 +27,30 @@ import { motion, AnimatePresence } from 'motion/react';
 import { USER_DATA, TRANSACTIONS } from './constants';
 import { cn } from './lib/utils';
 
+const formatTransactionCategory = (category?: string) => {
+  const normalized = String(category || '').trim().toLowerCase();
+
+  const labels: Record<string, string> = {
+    deposit: 'Deposit',
+    account_debit: 'Account Debit',
+    transfer: 'Transfer',
+    withdrawal: 'Withdrawal',
+    loan_disbursement: 'Loan Disbursement',
+    sandbox_balance_adjustment: 'Sandbox Adjustment',
+    balance_adjustment: 'Balance Adjustment',
+    admin_balance_adjustment: 'Account Adjustment',
+    manual_entry: 'Account Ledger'
+  };
+
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+
+  return category
+    ? String(category).replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+    : 'Transfer';
+};
+
 export default function App() {
 const clearStoredSession = useCallback(() => {
   localStorage.removeItem('auth_token');
@@ -206,8 +230,10 @@ useEffect(() => {
               id: `TXN-${t.id}`,
               reference: t.reference,
               name: t.description || 'Fund Transfer',
-              date: t.created_at
-                ? t.created_at.split(' ')[0]
+              date: t.transaction_date
+                ? String(t.transaction_date).split('T')[0].split(' ')[0]
+                : t.created_at
+                ? String(t.created_at).split('T')[0].split(' ')[0]
                 : new Date().toISOString().split('T')[0],
 
               time: t.created_at
@@ -221,7 +247,7 @@ useEffect(() => {
               amount: t.amount,
               type: t.type ? t.type.toLowerCase() : 'debit',
               status: t.status === 'COMPLETED' ? 'Completed' : (t.status === 'PENDING' ? 'Pending' : 'Declined'),
-              category: t.category || 'Transfer'
+              category: formatTransactionCategory(t.category)
             }));
             console.log('MAPPED TRANSACTIONS:', mappedTxns);
             setTransactions(mappedTxns);

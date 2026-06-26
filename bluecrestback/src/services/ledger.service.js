@@ -91,11 +91,11 @@ async function postEntry(data) {
             user_id: data.user_id,
             reference,
             type: data.type,
-            category: data.category || 'manual_entry',
+            category: data.category || (data.type === 'CREDIT' ? 'deposit' : 'account_debit'),
             amount,
             currency: data.currency,
             status,
-            description: data.description,
+            description: data.description || (data.type === 'CREDIT' ? 'Account Deposit' : 'Account Debit'),
             created_by: data.created_by,
             transaction_date: data.transaction_date || null
         });

@@ -31,6 +31,16 @@ async function createTransaction(data) {
         );
     }
 
+    const defaultCategory =
+        data.type === 'CREDIT'
+            ? 'deposit'
+            : 'account_debit';
+
+    const defaultDescription =
+        data.type === 'CREDIT'
+            ? 'Account Deposit'
+            : 'Account Debit';
+
     return await ledgerService
         .postEntry({
 
@@ -46,7 +56,7 @@ async function createTransaction(data) {
 
             category:
                 data.category ||
-                'manual_entry',
+                defaultCategory,
 
             amount:
                 data.amount,
@@ -60,7 +70,8 @@ async function createTransaction(data) {
                 'COMPLETED',
 
             description:
-                data.description,
+                data.description ||
+                defaultDescription,
 
             created_by:
                 data.created_by,

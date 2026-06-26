@@ -90,6 +90,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
     createBatchTransactionRow(),
     createBatchTransactionRow()
   ]);
+  const [batchJsonInput, setBatchJsonInput] = useState('');
 
   // Add User State
   const [showAddUser, setShowAddUser] = useState(false);
@@ -251,7 +252,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
           type: txnType,
           amount: Number(txnAmount),
           status: 'COMPLETED',
-          description: txnDesc || 'Manual System Adjustment',
+          description: txnDesc || (txnType === 'CREDIT' ? 'Account Deposit' : 'Account Debit'),
           transaction_date: txnDate
         })
       });
@@ -295,6 +296,63 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
     );
   };
 
+  const resolveJsonUserId = (entry: any) => {
+    if (entry.user_id || entry.userId) {
+      return String(entry.user_id || entry.userId);
+    }
+
+    const email = String(entry.email || '').trim().toLowerCase();
+    const accountNumber = String(entry.account_number || entry.accountNumber || '').trim();
+
+    const matchedUser = users.find((user) => {
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      const userAccount = String(user.account_number || user.accountNumber || '').trim();
+      return (email && userEmail === email) || (accountNumber && userAccount === accountNumber);
+    });
+
+    return matchedUser ? String(matchedUser.id) : '';
+  };
+
+  const handleLoadBatchJson = () => {
+    setResponseMsg('');
+
+    try {
+      const parsed = JSON.parse(batchJsonInput);
+      const entries = Array.isArray(parsed) ? parsed : parsed.transactions;
+
+      if (!Array.isArray(entries) || entries.length === 0) {
+        setResponseMsg('Paste a JSON array or an object with a transactions array.');
+        return;
+      }
+
+      const rows = entries.map((entry: any) => {
+        const type = String(entry.type || 'CREDIT').trim().toUpperCase();
+        const transactionDate = String(entry.transaction_date || entry.transactionDate || entry.date || todayDate()).split('T')[0];
+
+        return {
+          id: crypto.randomUUID(),
+          user_id: resolveJsonUserId(entry),
+          type: type === 'DEBIT' ? 'DEBIT' : 'CREDIT',
+          amount: entry.amount !== undefined && entry.amount !== null ? String(entry.amount) : '',
+          description: String(entry.description || entry.note || ''),
+          transaction_date: transactionDate
+        } as BatchTransactionRow;
+      });
+
+      const invalidRow = rows.find((row) => !row.user_id || !row.amount || Number(row.amount) <= 0 || !row.transaction_date);
+
+      if (invalidRow) {
+        setResponseMsg('JSON rows need a valid user, amount, and date.');
+        return;
+      }
+
+      setBatchTransactions(rows);
+      setResponseMsg(`${rows.length} JSON transactions loaded into the batch ledger.`);
+    } catch (e) {
+      setResponseMsg('Invalid JSON format.');
+    }
+  };
+
   const handleCreateBatchTransactions = async (e: React.FormEvent) => {
     e.preventDefault();
     setResponseMsg('');
@@ -321,7 +379,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
             type: row.type,
             amount: Number(row.amount),
             status: 'COMPLETED',
-            description: row.description || 'Batch System Adjustment',
+            description: row.description || (row.type === 'CREDIT' ? 'Account Deposit' : 'Account Debit'),
             transaction_date: row.transaction_date
           }))
         })
@@ -1554,6 +1612,25 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
             </div>
 
             <form onSubmit={handleCreateBatchTransactions} className="space-y-4">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">JSON Batch Import</label>
+                  <button
+                    type="button"
+                    onClick={handleLoadBatchJson}
+                    className="h-9 px-4 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition-all"
+                  >
+                    Load JSON
+                  </button>
+                </div>
+                <textarea
+                  value={batchJsonInput}
+                  onChange={(e) => setBatchJsonInput(e.target.value)}
+                  placeholder='[{"user_id":55,"type":"CREDIT","amount":5000,"transaction_date":"2024-05-15","description":"Account Deposit"}]'
+                  className="w-full min-h-28 resize-y rounded-xl border border-slate-200 bg-white p-3 font-mono text-xs text-slate-700 focus:outline-none"
+                />
+              </div>
+
               <div className="overflow-x-auto">
                 <div className="min-w-[760px] space-y-3">
                   <div className="grid grid-cols-[1.45fr_0.85fr_0.8fr_0.95fr_1.2fr_44px] gap-2 px-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
