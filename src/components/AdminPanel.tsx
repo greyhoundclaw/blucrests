@@ -19,7 +19,9 @@ import {
   Edit,
   Trash2,
   Eye,
-  FileText
+  FileText,
+  KeyRound,
+  Copy
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import AdminCommunications from './AdminCommunications';
@@ -45,6 +47,28 @@ const ADMIN_COUNTRY_CURRENCY_LIST = [
   { country: "Japan", currency: "JPY" }
 ];
 
+type AdminTxnType = 'CREDIT' | 'DEBIT';
+
+interface BatchTransactionRow {
+  id: string;
+  user_id: string;
+  type: AdminTxnType;
+  amount: string;
+  description: string;
+  transaction_date: string;
+}
+
+const todayDate = () => new Date().toISOString().split('T')[0];
+
+const createBatchTransactionRow = (): BatchTransactionRow => ({
+  id: crypto.randomUUID(),
+  user_id: '',
+  type: 'CREDIT',
+  amount: '',
+  description: '',
+  transaction_date: todayDate()
+});
+
 export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'security' | 'create-txn' | 'communications'>('users');
   const [users, setUsers] = useState<any[]>([]);
@@ -61,7 +85,11 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   const [txnType, setTxnType] = useState('CREDIT');
   const [txnAmount, setTxnAmount] = useState('');
   const [txnDesc, setTxnDesc] = useState('');
-  const [txnDate, setTxnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [txnDate, setTxnDate] = useState(todayDate());
+  const [batchTransactions, setBatchTransactions] = useState<BatchTransactionRow[]>([
+    createBatchTransactionRow(),
+    createBatchTransactionRow()
+  ]);
 
   // Add User State
   const [showAddUser, setShowAddUser] = useState(false);
@@ -85,6 +113,12 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   const [editBalance, setEditBalance] = useState('');
   const [editDob, setEditDob] = useState('');
   const [editTransferPin, setEditTransferPin] = useState('');
+
+  // Password reset modal state
+  const [resetPasswordUser, setResetPasswordUser] = useState<any | null>(null);
+  const [resetTemporaryPassword, setResetTemporaryPassword] = useState('');
+  const [resetForceChange, setResetForceChange] = useState(true);
+  const [resetPasswordResult, setResetPasswordResult] = useState('');
 
   // KYC inspection modal state
   const [inspectKycUser, setInspectKycUser] = useState<any | null>(null);
@@ -230,6 +264,76 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       } else {
         const err = await res.json();
         setResponseMsg(err.error?.message || err.error || 'Failed to issue transaction.');
+      }
+    } catch (e) {
+      console.error(e);
+      setResponseMsg('Server error.');
+    }
+  };
+
+  const handleUpdateBatchTransaction = (
+    rowId: string,
+    field: keyof Omit<BatchTransactionRow, 'id'>,
+    value: string
+  ) => {
+    setBatchTransactions((rows) =>
+      rows.map((row) =>
+        row.id === rowId
+          ? { ...row, [field]: field === 'type' ? value as AdminTxnType : value }
+          : row
+      )
+    );
+  };
+
+  const handleAddBatchTransaction = () => {
+    setBatchTransactions((rows) => [...rows, createBatchTransactionRow()]);
+  };
+
+  const handleRemoveBatchTransaction = (rowId: string) => {
+    setBatchTransactions((rows) =>
+      rows.length === 1 ? rows : rows.filter((row) => row.id !== rowId)
+    );
+  };
+
+  const handleCreateBatchTransactions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResponseMsg('');
+
+    const incompleteRow = batchTransactions.find(
+      (row) => !row.user_id || !row.amount || Number(row.amount) <= 0 || !row.transaction_date
+    );
+
+    if (incompleteRow) {
+      setResponseMsg('Complete every batch row with a member, amount, and date.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/v1/transactions/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transactions: batchTransactions.map((row) => ({
+            user_id: row.user_id,
+            type: row.type,
+            amount: Number(row.amount),
+            status: 'COMPLETED',
+            description: row.description || 'Batch System Adjustment',
+            transaction_date: row.transaction_date
+          }))
+        })
+      });
+
+      if (res.ok) {
+        setResponseMsg(`${batchTransactions.length} batch transactions recorded successfully!`);
+        setBatchTransactions([createBatchTransactionRow(), createBatchTransactionRow()]);
+        fetchData();
+      } else {
+        const err = await res.json();
+        setResponseMsg(err.error?.message || err.error || 'Failed to issue batch transactions.');
       }
     } catch (e) {
       console.error(e);
@@ -476,6 +580,46 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       fetchData();
     } catch (requestError: any) {
       setResponseMsg(requestError.message || 'Card action failed.');
+    }
+  };
+
+  const handleOpenPasswordReset = (user: any) => {
+    setResetPasswordUser(user);
+    setResetTemporaryPassword('');
+    setResetForceChange(true);
+    setResetPasswordResult('');
+    setResponseMsg('');
+  };
+
+  const handleResetUserPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordUser) return;
+    setResponseMsg('');
+    setResetPasswordResult('');
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${resetPasswordUser.id}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          temporary_password: resetTemporaryPassword || undefined,
+          force_change: resetForceChange
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const result = data.data || data;
+        setResetPasswordResult(result.temporary_password);
+        setResponseMsg('Temporary password created successfully.');
+        fetchData();
+      } else {
+        setResponseMsg(data.error?.message || data.error || 'Failed to reset password.');
+      }
+    } catch (e) {
+      setResponseMsg('Server error.');
     }
   };
 
@@ -952,6 +1096,13 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
+                                onClick={() => handleOpenPasswordReset(u)}
+                                className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
+                                title="Reset Login Password"
+                              >
+                                <KeyRound className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => handleDeleteUser(u.id)}
                                 className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                                 title="Delete User Permanently"
@@ -1304,90 +1455,263 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       )}
 
       {activeSubTab === 'create-txn' && (
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-50 max-w-lg mx-auto">
-          <h3 className="font-extrabold text-slate-800 text-lg mb-6 flex items-center gap-2">
-            <PlusCircle className="w-5 h-5 text-[#003399]" />
-            Issue Custom Transaction Ledger
-          </h3>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_1fr] gap-6 items-start">
+          <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <h3 className="font-extrabold text-slate-800 text-lg mb-6 flex items-center gap-2">
+              <PlusCircle className="w-5 h-5 text-[#003399]" />
+              Issue Single Transaction
+            </h3>
 
-          <form onSubmit={handleCreateManualTxn} className="space-y-4"
-
-          >
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Select Member Account</label>
-              <select
-                value={targetUserId}
-                onChange={(e) => setTargetUserId(e.target.value)}
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
-                required
-              >
-                <option value="">-- Choose Member --</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.first_name || u.firstName} {u.last_name || u.lastName} (#{u.account_number || u.accountNumber})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateManualTxn} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Transaction Type</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Select Member Account</label>
                 <select
-                  value={txnType}
-                  onChange={(e) => setTxnType(e.target.value)}
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(e.target.value)}
                   className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                  required
                 >
-                  <option value="CREDIT">Direct Credit (Deposit)</option>
-                  <option value="DEBIT">Direct Debit (Deduction)</option>
+                  <option value="">-- Choose Member --</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.first_name || u.firstName} {u.last_name || u.lastName} (#{u.account_number || u.accountNumber})
+                    </option>
+                  ))}
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Transaction Type</label>
+                  <select
+                    value={txnType}
+                    onChange={(e) => setTxnType(e.target.value)}
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                  >
+                    <option value="CREDIT">Direct Credit</option>
+                    <option value="DEBIT">Direct Debit</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Amount</label>
+                  <input
+                    type="number"
+                    value={txnAmount}
+                    onChange={(e) => setTxnAmount(e.target.value)}
+                    placeholder="e.g. 1000"
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Amount</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Transaction Date</label>
                 <input
-                  type="number"
-                  value={txnAmount}
-                  onChange={(e) => setTxnAmount(e.target.value)}
-                  placeholder="e.g. 1000"
-                  className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                  type="date"
+                  value={txnDate}
+                  onChange={(e) => setTxnDate(e.target.value)}
+                  className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none text-slate-800"
                   required
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Description / Note</label>
+                <input
+                  type="text"
+                  value={txnDesc}
+                  onChange={(e) => setTxnDesc(e.target.value)}
+                  placeholder="e.g. System adjustment credit"
+                  className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full h-12 bg-[#003399] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 transition-all"
+              >
+                Issue Transaction Ledger
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#003399]" />
+                Batch Transaction Ledger
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddBatchTransaction}
+                className="h-10 px-4 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Add Row
+              </button>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Transaction Date</label>
-              <input
-                type="date"
-                value={txnDate}
-                onChange={(e) => setTxnDate(e.target.value)}
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none text-slate-800"
-                required
-              />
-            </div>
+            <form onSubmit={handleCreateBatchTransactions} className="space-y-4">
+              <div className="overflow-x-auto">
+                <div className="min-w-[760px] space-y-3">
+                  <div className="grid grid-cols-[1.45fr_0.85fr_0.8fr_0.95fr_1.2fr_44px] gap-2 px-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Member</span>
+                    <span>Type</span>
+                    <span>Amount</span>
+                    <span>Date</span>
+                    <span>Description</span>
+                    <span></span>
+                  </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Description / Note</label>
-              <input
-                type="text"
-                value={txnDesc}
-                onChange={(e) => setTxnDesc(e.target.value)}
-                placeholder="e.g. System adjustment credit"
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
-              />
-            </div>
+                  {batchTransactions.map((row) => (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-[1.45fr_0.85fr_0.8fr_0.95fr_1.2fr_44px] gap-2 items-center"
+                    >
+                      <select
+                        value={row.user_id}
+                        onChange={(e) => handleUpdateBatchTransaction(row.id, 'user_id', e.target.value)}
+                        className="h-12 bg-slate-50 border border-slate-100 rounded-xl px-3 text-xs font-semibold focus:outline-none"
+                        required
+                      >
+                        <option value="">Choose Member</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.first_name || u.firstName} {u.last_name || u.lastName} (#{u.account_number || u.accountNumber})
+                          </option>
+                        ))}
+                      </select>
 
-            <button
-              type="submit"
-              className="w-full h-12 bg-[#003399] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 transition-all"
-            >
-              Issue Transaction Ledger
-            </button>
-          </form>
+                      <select
+                        value={row.type}
+                        onChange={(e) => handleUpdateBatchTransaction(row.id, 'type', e.target.value)}
+                        className="h-12 bg-slate-50 border border-slate-100 rounded-xl px-3 text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="CREDIT">Credit</option>
+                        <option value="DEBIT">Debit</option>
+                      </select>
+
+                      <input
+                        type="number"
+                        value={row.amount}
+                        onChange={(e) => handleUpdateBatchTransaction(row.id, 'amount', e.target.value)}
+                        placeholder="0.00"
+                        className="h-12 bg-slate-50 border border-slate-100 rounded-xl px-3 text-xs font-semibold focus:outline-none"
+                        required
+                      />
+
+                      <input
+                        type="date"
+                        value={row.transaction_date}
+                        onChange={(e) => handleUpdateBatchTransaction(row.id, 'transaction_date', e.target.value)}
+                        className="h-12 bg-slate-50 border border-slate-100 rounded-xl px-3 text-xs font-semibold focus:outline-none text-slate-800"
+                        required
+                      />
+
+                      <input
+                        type="text"
+                        value={row.description}
+                        onChange={(e) => handleUpdateBatchTransaction(row.id, 'description', e.target.value)}
+                        placeholder="Batch adjustment note"
+                        className="h-12 bg-slate-50 border border-slate-100 rounded-xl px-3 text-xs font-semibold focus:outline-none"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBatchTransaction(row.id)}
+                        disabled={batchTransactions.length === 1}
+                        className="h-12 w-11 rounded-xl bg-rose-50 text-rose-500 disabled:bg-slate-50 disabled:text-slate-300 flex items-center justify-center transition-all"
+                        title="Remove batch row"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full h-12 bg-[#003399] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 transition-all"
+              >
+                Submit {batchTransactions.length} Batch Transactions
+              </button>
+            </form>
+          </div>
         </div>
+      )}
 
+      {resetPasswordUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl border border-slate-100">
+            <div className="px-6 py-5 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Password Recovery</p>
+                <h4 className="text-lg font-extrabold mt-0.5">
+                  {resetPasswordUser.first_name || resetPasswordUser.firstName} {resetPasswordUser.last_name || resetPasswordUser.lastName}
+                </h4>
+              </div>
+              <button
+                onClick={() => setResetPasswordUser(null)}
+                className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
+            <form onSubmit={handleResetUserPassword} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Temporary Password</label>
+                <input
+                  type="text"
+                  value={resetTemporaryPassword}
+                  onChange={(e) => setResetTemporaryPassword(e.target.value)}
+                  placeholder="Leave empty to auto-generate"
+                  className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-semibold focus:outline-none"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resetForceChange}
+                  onChange={(e) => setResetForceChange(e.target.checked)}
+                  className="w-4 h-4 accent-[#003399]"
+                />
+                <span className="text-xs font-bold text-slate-600">Require password change at next login</span>
+              </label>
+
+              {resetPasswordResult && (
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2">Temporary Password</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-3 py-2 bg-white rounded-lg border border-emerald-100 text-sm font-bold text-slate-800 break-all">
+                      {resetPasswordResult}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(resetPasswordResult)}
+                      className="h-10 w-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700"
+                      title="Copy temporary password"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full h-12 bg-[#003399] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-800 transition-all"
+              >
+                <KeyRound className="w-4 h-4" />
+                Reset User Password
+              </button>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* KYC DOCUMENTS INSPECTION MODAL */}
