@@ -96,7 +96,7 @@ export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          government_id_number: docNumber,
+          SSN: docNumber,
           id_front_image: frontImage,
           id_back_image: backImage
         })
