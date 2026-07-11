@@ -536,6 +536,21 @@ CREATE TABLE IF NOT EXISTS cards (
         }
     }
 
+    const indexes = [
+        `CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`,
+        `CREATE INDEX IF NOT EXISTS idx_transactions_user_id_id ON transactions(user_id, id)`,
+        `CREATE INDEX IF NOT EXISTS idx_transactions_id ON transactions(id)`,
+        `CREATE INDEX IF NOT EXISTS idx_transfers_sender_id ON transfers(sender_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_transfers_recipient_user_id ON transfers(recipient_user_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_transfers_status_id ON transfers(status, id)`,
+        `CREATE INDEX IF NOT EXISTS idx_loans_user_id_id ON loans(user_id, id)`,
+        `CREATE INDEX IF NOT EXISTS idx_cards_user_id_id ON cards(user_id, id)`
+    ];
+
+    for (const indexSql of indexes) {
+        await db.query(indexSql);
+    }
 
 
 

@@ -130,11 +130,75 @@ async function getAllUsers() {
 
     return await db.query(
         `
-        SELECT *
+        SELECT
+            id,
+            account_number,
+            first_name,
+            last_name,
+            username,
+            email,
+            phone,
+            email_verified,
+            gender,
+            date_of_birth,
+            country,
+            state,
+            zip_code,
+            marital_status,
+            occupation,
+            address,
+            government_id_number,
+            kyc_status,
+            preferred_currency,
+            balance,
+            transfer_pin,
+            transfer_flow,
+            two_factor_enabled,
+            status,
+            role,
+            created_at,
+            force_password_change,
+            password_changed_at,
+            CASE
+                WHEN id_front_image IS NOT NULL AND id_front_image != '' THEN 1
+                ELSE 0
+            END AS id_front_image_present,
+            CASE
+                WHEN id_back_image IS NOT NULL AND id_back_image != '' THEN 1
+                ELSE 0
+            END AS id_back_image_present,
+            CASE
+                WHEN profile_image IS NOT NULL AND profile_image != '' THEN 1
+                ELSE 0
+            END AS profile_image_present
         FROM users
         ORDER BY id DESC
         `
     );
+}
+
+async function getUserKyc(userId) {
+    const parsedId = parseInt(userId, 10);
+    if (isNaN(parsedId)) return null;
+
+    const users = await db.query(
+        `
+        SELECT
+            id,
+            first_name,
+            last_name,
+            email,
+            government_id_number,
+            kyc_status,
+            id_front_image,
+            id_back_image
+        FROM users
+        WHERE id = ?
+        `,
+        [parsedId]
+    );
+
+    return users[0];
 }
 
 async function updateUserBalance(
@@ -444,6 +508,7 @@ module.exports = {
     createUser,
     findUserByEmail,
     findUserById,
+    getUserKyc,
     getAllUsers,
     updateUserBalance,
     updateUser,

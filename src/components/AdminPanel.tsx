@@ -69,6 +69,8 @@ const createBatchTransactionRow = (): BatchTransactionRow => ({
   transaction_date: todayDate()
 });
 
+const unwrapApiData = (payload: any) => payload?.data || payload || [];
+
 export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'security' | 'create-txn' | 'communications'>('users');
   const [users, setUsers] = useState<any[]>([]);
@@ -138,52 +140,35 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
     setIsLoading(true);
     setResponseMsg('');
     try {
-      // 1. Fetch all users
-      const usersRes = await fetch('/api/v1/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(data.data || data);
-      }
+      const request = async (path: string) => {
+        const res = await fetch(path, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
 
-      // 2. Fetch all transfers
-      const transfersRes = await fetch('/api/v1/transfers', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (transfersRes.ok) {
-        const data = await transfersRes.json();
-        setTransfers(data.data || data);
-      }
+        if (!res.ok) {
+          throw new Error(data.error?.message || data.error || `Failed to fetch ${path}`);
+        }
 
-      // 3. Fetch all loans
-      const loansRes = await fetch('/api/v1/loans', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (loansRes.ok) {
-        const data = await loansRes.json();
-        setLoans(data.data || data);
-      }
+        return unwrapApiData(data);
+      };
 
-      const cardsRes = await fetch('/api/v1/cards', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (cardsRes.ok) {
-        const data = await cardsRes.json();
-        setCards(data.data || data);
-      }
+      const [usersData, transfersData, loansData, cardsData, transactionsData] = await Promise.all([
+        request('/api/v1/users'),
+        request('/api/v1/transfers'),
+        request('/api/v1/loans'),
+        request('/api/v1/cards'),
+        request('/api/v1/transactions')
+      ]);
 
-      // 4. Fetch all transactions
-      const txnsRes = await fetch('/api/v1/transactions', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (txnsRes.ok) {
-        const data = await txnsRes.json();
-        setTransactions(data.data || data);
-      }
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setTransfers(Array.isArray(transfersData) ? transfersData : []);
+      setLoans(Array.isArray(loansData) ? loansData : []);
+      setCards(Array.isArray(cardsData) ? cardsData : []);
+      setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
     } catch (e) {
       console.error(e);
-      setResponseMsg('Failed to fetch admin stats.');
+      setResponseMsg(e instanceof Error ? e.message : 'Failed to fetch admin stats.');
     } finally {
       setIsLoading(false);
     }
@@ -215,6 +200,33 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       setUserTransactionsError(error instanceof Error ? error.message : 'Failed to fetch user transactions.');
     } finally {
       setIsLoadingUserTransactions(false);
+    }
+  };
+
+  const handleInspectKyc = async (user: any) => {
+    setInspectKycUser({ ...user, isLoadingKyc: true });
+
+    try {
+      const res = await fetch(`/api/v1/users/${user.id}/kyc`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const payload = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payload.error?.message || payload.error || 'Failed to fetch KYC documents.');
+      }
+
+      setInspectKycUser({
+        ...user,
+        ...unwrapApiData(payload),
+        isLoadingKyc: false
+      });
+    } catch (error) {
+      setInspectKycUser({
+        ...user,
+        isLoadingKyc: false,
+        kycError: error instanceof Error ? error.message : 'Failed to fetch KYC documents.'
+      });
     }
   };
 
@@ -1021,7 +1033,13 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                 <tbody className="divide-y divide-slate-50">
                   {users.map((u) => {
                     const isEditing = editingUserId === u.id;
-                    const hasKycSubmitted = u.government_id_number || u.id_front_image || u.id_back_image;
+                    const hasKycSubmitted = Boolean(
+                      u.government_id_number ||
+                      u.id_front_image_present ||
+                      u.id_back_image_present ||
+                      u.id_front_image ||
+                      u.id_back_image
+                    );
                     return (
                       <tr key={u.id} className="hover:bg-slate-55/10 transition-colors">
                         <td className="py-4 font-mono text-xs font-bold text-slate-500">#{u.account_number || u.accountNumber}</td>
@@ -1104,7 +1122,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                             </select>
                             {hasKycSubmitted && (
                               <button
-                                onClick={() => setInspectKycUser(u)}
+                                onClick={() => handleInspectKyc(u)}
                                 className="text-[9px] text-[#003399] font-bold flex items-center gap-1 hover:underline"
                               >
                                 <Eye className="w-3 h-3" /> Inspect Uploads
@@ -2005,6 +2023,17 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
 
             {/* Modal Content */}
             <div className="p-8 overflow-y-auto space-y-6 flex-1">
+              {inspectKycUser.isLoadingKyc ? (
+                <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+                  <RefreshCw className="w-6 h-6 animate-spin mb-3 text-[#003399]" />
+                  <p className="text-xs font-bold">Loading KYC documents...</p>
+                </div>
+              ) : inspectKycUser.kycError ? (
+                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 text-sm font-semibold">
+                  {inspectKycUser.kycError}
+                </div>
+              ) : (
+                <>
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Government ID Number</span>
@@ -2058,6 +2087,8 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
 
             {/* Modal Footer */}

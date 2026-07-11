@@ -142,6 +142,16 @@ async function fetchUsers() {
     });
 }
 
+async function fetchUserKyc(userId) {
+    const user = await userRepository.getUserKyc(userId);
+
+    if (!user) {
+        throw new Error('User not found');
+    }
+
+    return user;
+}
+
 async function changeUserBalance(
     userId,
     balance
@@ -356,6 +366,7 @@ async function lookupUserByAccountNumber(accountNumber) {
 module.exports = {
     registerUser,
     fetchUsers,
+    fetchUserKyc,
     changeUserBalance,
     setTransferPin,
     changeTransferFlow,

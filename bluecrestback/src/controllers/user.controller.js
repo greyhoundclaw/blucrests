@@ -78,6 +78,24 @@ async function getUsers(req, res) {
     }
 }
 
+async function getUserKyc(req, res, userId) {
+    try {
+        const user = await userService.fetchUserKyc(userId);
+
+        return successResponse(
+            res,
+            user,
+            'User KYC documents fetched successfully'
+        );
+    } catch (error) {
+        return errorResponse(
+            res,
+            error.message,
+            error.message === 'User not found' ? 404 : 500
+        );
+    }
+}
+
 async function updateBalance(
     req,
     res,
@@ -262,6 +280,7 @@ async function lookupUser(req, res, accountNumber) {
 module.exports = {
     register,
     getUsers,
+    getUserKyc,
     updateBalance,
     setTransferPin,
     submitKyc,

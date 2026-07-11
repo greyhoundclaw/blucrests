@@ -63,6 +63,7 @@ async function getTransactions() {
         SELECT *
         FROM transactions
         ORDER BY id DESC
+        LIMIT 500
     `);
 }
 
@@ -76,6 +77,7 @@ async function getUserTransactions(
         FROM transactions
         WHERE user_id = ?
         ORDER BY id DESC
+        LIMIT 500
         `,
         [userId]
     );

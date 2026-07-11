@@ -86,6 +86,26 @@ async function userRoutes(req, res, body) {
 
     //kyc Update status
 
+    if (
+        req.method === 'GET' &&
+        /^\/api\/v1\/users\/\d+\/kyc$/.test(req.url)
+    ) {
+        const adminAuthorized =
+            await requireAdmin(req, res);
+
+        if (!adminAuthorized) {
+            return true;
+        }
+
+        const userId = req.url.split('/')[4];
+
+        return userController.getUserKyc(
+            req,
+            res,
+            userId
+        );
+    }
+
 
     if (
         req.method === 'POST' &&
