@@ -6,23 +6,9 @@ const db = require('../database/db');
 const CARD_PACKAGES = Object.freeze({
     STANDARD: {
         card_type: 'STANDARD',
-        issuance_fee: 500,
+        issuance_fee: 250,
         purchase_limit_min: 0,
-        purchase_limit_max: 10000,
-        shipping_included: false
-    },
-    GOLD: {
-        card_type: 'GOLD',
-        issuance_fee: 750,
-        purchase_limit_min: 10000,
         purchase_limit_max: 50000,
-        shipping_included: true
-    },
-    PLATINUM: {
-        card_type: 'PLATINUM',
-        issuance_fee: 1000,
-        purchase_limit_min: 50000,
-        purchase_limit_max: 250000,
         shipping_included: true
     }
 });
@@ -119,7 +105,7 @@ async function apply(user, data) {
     const selectedPackage = CARD_PACKAGES[packageName];
 
     if (!selectedPackage) {
-        throw new Error('Select a Standard, Gold, or Platinum card package');
+        throw new Error('Select the Blue Crest ATM card');
     }
 
     const existing = await cardRepository.getCardsByUser(user.id);

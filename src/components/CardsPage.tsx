@@ -34,27 +34,9 @@ type CardApplication = {
 const CARD_PACKAGES = [
   {
     id: 'STANDARD',
-    name: 'Standard',
-    fee: 500,
-    limit: 'Up to $10,000',
-    shipping: 'Shipping calculated separately',
-    accent: 'border-slate-200 bg-gradient-to-br from-white to-slate-50',
-    badge: 'bg-slate-100 text-slate-600'
-  },
-  {
-    id: 'GOLD',
-    name: 'Gold',
-    fee: 750,
-    limit: '$10,000 – $50,000',
-    shipping: 'Shipping included',
-    accent: 'border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-100/60',
-    badge: 'bg-amber-500 text-white'
-  },
-  {
-    id: 'PLATINUM',
-    name: 'Platinum',
-    fee: 1000,
-    limit: '$50,000 – $250,000',
+    name: 'Blue Crest ATM Card',
+    fee: 250,
+    limit: 'Up to $50,000',
     shipping: 'Shipping included',
     accent: 'border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-100/70',
     badge: 'bg-[#003399] text-white'
@@ -143,9 +125,7 @@ export default function CardsPage({
   const formattedNumber = releasedCard?.card_number
     ? releasedCard.card_number.replace(/(\d{4})(?=\d)/g, '$1 ')
     : '';
-  const activePackageName = activeApplication?.card_type
-    ? `${activeApplication.card_type.charAt(0)}${activeApplication.card_type.slice(1).toLowerCase()}`
-    : 'Debit';
+  const activePackageName = 'Blue Crest ATM Card';
 
   useEffect(() => {
     if (activeApplication?.status !== 'AWAITING_PAYMENT') return;
@@ -339,8 +319,8 @@ export default function CardsPage({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          <div className="lg:col-span-3 rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm">
+        <div>
+          <div className="rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#003399] flex items-center justify-center">
                 <CreditCard className="w-5 h-5" />
@@ -353,9 +333,9 @@ export default function CardsPage({
             <form onSubmit={applyForCard} className="mt-7 space-y-4">
               <fieldset>
                 <legend className="block text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Select your card package
+                  Your ATM card
                 </legend>
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="mt-3 grid grid-cols-1 gap-3">
                   {CARD_PACKAGES.map(cardPackage => {
                     const selected = selectedPackage === cardPackage.id;
 
@@ -420,16 +400,6 @@ export default function CardsPage({
                 {submitting ? 'Submitting…' : 'Submit Card Application'}
               </button>
             </form>
-          </div>
-          <div className="lg:col-span-2 rounded-[2.5rem] bg-slate-900 p-8 text-white">
-            <ShieldCheck className="w-8 h-8 text-emerald-400" />
-            <h3 className="mt-5 text-xl font-extrabold">How issuance works</h3>
-            <div className="mt-6 space-y-5 text-sm text-slate-300">
-              <p>1. Choose Standard, Gold, or Platinum and submit your delivery details.</p>
-              <p>2. Admin reviews the package and its fixed issuance fee.</p>
-              <p>3. After approval, follow the Bitcoin transfer instructions and upload your Txn Reference.</p>
-              <p>4. Admin verifies the submitted reference and releases the card.</p>
-            </div>
           </div>
         </div>
       )}

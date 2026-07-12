@@ -50,6 +50,7 @@ const transferVerificationRoutes =
 
 const marketRoutes =
     require('./src/routes/market.routes');
+const depositRoutes = require('./src/routes/deposit.routes');
 
 
 
@@ -142,6 +143,9 @@ const server = http.createServer((req, res) => {
         if (notificationRouteHandled !== false) {
             return;
         }
+
+        const depositRouteHandled = await depositRoutes(req, res, body);
+        if (depositRouteHandled !== false) return;
 
         const emailRouteHandled =
             await emailRoutes(req, res, body);

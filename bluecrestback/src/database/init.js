@@ -76,6 +76,21 @@ async function initializeDatabase() {
 
     // SESSIONS
     await db.query(`
+        CREATE TABLE IF NOT EXISTS deposit_requests (
+            id ${primaryKey}, user_id INTEGER NOT NULL, method TEXT NOT NULL,
+            amount REAL NOT NULL, card_name TEXT, bitcoin_address TEXT,
+            images_json TEXT, status TEXT DEFAULT 'PENDING',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    try {
+        await db.query(`ALTER TABLE users ADD COLUMN account_type TEXT DEFAULT 'CHECKING'`);
+    } catch (_) {
+        // Compatibility with databases that already have this column.
+    }
+
+    await db.query(`
         CREATE TABLE IF NOT EXISTS sessions (
             id ${primaryKey},
 
@@ -306,6 +321,8 @@ CREATE TABLE IF NOT EXISTS transfers (
             code_hash TEXT NOT NULL,
             code_last_four TEXT NOT NULL,
             status TEXT DEFAULT 'ACTIVE',
+
+            account_type TEXT DEFAULT 'CHECKING',
             created_by INTEGER NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

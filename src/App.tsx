@@ -21,6 +21,8 @@ import CreatePinPage from './components/CreatePinPage';
 import SandboxPanel from './components/SandboxPanel';
 import AdminPanel from './components/AdminPanel';
 import ProfilePage from './components/ProfilePage';
+import DepositPage from './components/DepositPage';
+import NotificationAlert from './components/NotificationAlert';
 import { LanguageCode } from './lib/translations';
 import { RestrictedModal, SelectTransferTypeModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
 import { motion, AnimatePresence } from 'motion/react';
@@ -108,6 +110,7 @@ useEffect(() => {
   const [isTransferCodeModalOpen, setIsTransferCodeModalOpen] = useState(false);
   const [isTransferVerificationOpen, setIsTransferVerificationOpen] = useState(false);
   const [transferVerificationToken, setTransferVerificationToken] = useState('');
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -269,6 +272,18 @@ useEffect(() => {
     }
   }, [isLoggedIn, syncUserData]);
 
+  useEffect(() => {
+    if (!isLoggedIn || activeTab === 'notifications') return;
+    const token = localStorage.getItem('auth_token');
+    const loadUnread = () => fetch('/api/v1/notifications', { headers: { Authorization: `Bearer ${token}` } })
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(payload => setUnreadNotificationCount((payload.data || []).filter((note: any) => !Number(note.is_read)).length))
+      .catch(() => undefined);
+    loadUnread();
+    const timer = window.setInterval(loadUnread, 8000);
+    return () => window.clearInterval(timer);
+  }, [isLoggedIn, activeTab]);
+
   const handleVerifyTransferCode = useCallback(async (pin: string) => {
     if (!pendingTransfer || !currentUser) return;
 
@@ -412,6 +427,8 @@ setIsLoggedIn(true);
     switch (activeTab) {
       case 'dashboard':
         return <DashboardOverview onActionClick={handleActionClick} balance={balance} transactions={transactions} user={currentUser} formatUserCurrency={formatUserCurrency} />;
+      case 'deposit':
+        return <DepositPage formatCurrency={formatUserCurrency} />;
       case 'local-transfer':
       case 'intl-transfer':
         if (currentUser.transferPin === null || currentUser.transferPin === undefined || currentUser.transferPin === "") {
@@ -580,6 +597,7 @@ return updated;
         onClose={() => setIsRestrictedModalOpen(false)}
         authorizationHold={(currentUser.transfer_flow || currentUser.transferFlow) === 'AUTHORIZATION_HOLD'}
       />
+      <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
 
       <SelectTransferTypeModal
         isOpen={isSelectTypeModalOpen}

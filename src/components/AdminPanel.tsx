@@ -72,11 +72,12 @@ const createBatchTransactionRow = (): BatchTransactionRow => ({
 const unwrapApiData = (payload: any) => payload?.data || payload || [];
 
 export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'security' | 'create-txn' | 'communications'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'deposits' | 'security' | 'create-txn' | 'communications'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -153,11 +154,12 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
         return unwrapApiData(data);
       };
 
-      const [usersData, transfersData, loansData, cardsData, transactionsData] = await Promise.all([
+      const [usersData, transfersData, loansData, cardsData, depositsData, transactionsData] = await Promise.all([
         request('/api/v1/users'),
         request('/api/v1/transfers'),
         request('/api/v1/loans'),
         request('/api/v1/cards'),
+        request('/api/v1/admin/deposits'),
         request('/api/v1/transactions')
       ]);
 
@@ -165,6 +167,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       setTransfers(Array.isArray(transfersData) ? transfersData : []);
       setLoans(Array.isArray(loansData) ? loansData : []);
       setCards(Array.isArray(cardsData) ? cardsData : []);
+      setDeposits(Array.isArray(depositsData) ? depositsData : []);
       setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
     } catch (e) {
       console.error(e);
@@ -177,6 +180,16 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   useEffect(() => {
     fetchData();
   }, []);
+
+  const reviewDeposit = async (id: number, status: 'APPROVED' | 'REJECTED') => {
+    try {
+      const response = await fetch(`/api/v1/admin/deposits/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error?.message || 'Could not review deposit');
+      setDeposits(items => items.map(item => item.id === id ? { ...item, status } : item));
+      setResponseMsg(`Deposit ${status.toLowerCase()}.`);
+    } catch (error: any) { setResponseMsg(error.message); }
+  };
 
   const handleViewUserTransactions = async (user: any) => {
     setTransactionUser(user);
@@ -852,6 +865,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
           { id: 'transfers', label: 'Transfers & Wires', icon: Send },
           { id: 'loans', label: 'Capital Financing', icon: Landmark },
           { id: 'cards', label: 'Card Applications', icon: CreditCard },
+          { id: 'deposits', label: 'Deposit Reviews', icon: DollarSign },
           { id: 'security', label: 'Authorization Codes', icon: Lock },
           { id: 'create-txn', label: 'Issue Transaction', icon: PlusCircle },
           { id: 'communications', label: 'Communications & Payouts', icon: Send }
@@ -879,6 +893,16 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
 
       {activeSubTab === 'security' && (
         <AdminSecurity users={users} />
+      )}
+
+      {activeSubTab === 'deposits' && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100"><h3 className="font-extrabold text-slate-900">Deposit verification</h3><p className="text-xs text-slate-400 mt-1">Cross-check gift cards and Bitcoin payment receipts before approval.</p></div>
+          {deposits.length === 0 ? <div className="p-12 text-center text-sm font-semibold text-slate-400">No deposit requests yet.</div> : <div className="overflow-x-auto"><table className="w-full text-left min-w-[900px]"><thead className="bg-slate-50 text-[9px] uppercase tracking-widest text-slate-400"><tr><th className="p-4">User</th><th className="p-4">Method</th><th className="p-4">Amount</th><th className="p-4">Evidence</th><th className="p-4">Status</th><th className="p-4">Review</th></tr></thead><tbody className="divide-y divide-slate-100">{deposits.map(deposit => {
+            let evidence: any[] = []; try { evidence = JSON.parse(deposit.images_json || '[]'); } catch { evidence = []; }
+            return <tr key={deposit.id}><td className="p-4"><p className="text-xs font-bold text-slate-800">{deposit.first_name} {deposit.last_name}</p><p className="text-[10px] text-slate-400">{deposit.email}</p></td><td className="p-4"><p className="text-xs font-bold">{deposit.method}</p><p className="text-[10px] text-slate-400 max-w-48 break-all">{deposit.card_name || deposit.bitcoin_address}</p></td><td className="p-4 text-sm font-extrabold">${Number(deposit.amount).toLocaleString()}</td><td className="p-4"><div className="flex gap-2 flex-wrap">{evidence.map((image, index) => <a key={index} href={image.data} target="_blank" rel="noreferrer" title={image.name || 'Open evidence'}><img src={image.data} alt={image.name || 'Deposit evidence'} className="w-14 h-14 object-cover rounded-lg border border-slate-200" /></a>)}</div></td><td className="p-4"><span className={cn('text-[9px] font-bold px-2.5 py-1 rounded-full', deposit.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : deposit.status === 'REJECTED' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600')}>{deposit.status}</span></td><td className="p-4">{deposit.status === 'PENDING' && <div className="flex gap-2"><button onClick={() => reviewDeposit(deposit.id, 'APPROVED')} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-bold">Approve</button><button onClick={() => reviewDeposit(deposit.id, 'REJECTED')} className="px-3 py-2 rounded-lg bg-rose-500 text-white text-[10px] font-bold">Reject</button></div>}</td></tr>;
+          })}</tbody></table></div>}
+        </div>
       )}
 
       {activeSubTab === 'users' && (
