@@ -185,6 +185,23 @@ CREATE TABLE IF NOT EXISTS transfers (
         )
     `);
 
+    await db.query(`CREATE TABLE IF NOT EXISTS support_conversations (
+        id ${primaryKey}, user_id INTEGER NOT NULL UNIQUE, status TEXT DEFAULT 'OPEN',
+        last_message_at TEXT DEFAULT CURRENT_TIMESTAMP, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS support_messages (
+        id ${primaryKey}, conversation_id INTEGER NOT NULL, sender_id INTEGER NOT NULL,
+        sender_role TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id ${primaryKey}, user_id INTEGER NOT NULL, endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     await db.query(`
         CREATE TABLE IF NOT EXISTS email_settings (
             id ${primaryKey},

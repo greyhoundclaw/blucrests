@@ -22,10 +22,12 @@ import {
   FileText,
   KeyRound,
   Copy
+  ,BellRing
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import AdminCommunications from './AdminCommunications';
 import AdminSecurity from './AdminSecurity';
+import AdminSupportInbox from './AdminSupportInbox';
 
 interface AdminPanelProps {
   currentUser: any;
@@ -72,7 +74,7 @@ const createBatchTransactionRow = (): BatchTransactionRow => ({
 const unwrapApiData = (payload: any) => payload?.data || payload || [];
 
 export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'deposits' | 'security' | 'create-txn' | 'communications'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'transfers' | 'loans' | 'cards' | 'deposits' | 'support' | 'security' | 'create-txn' | 'communications'>(() => new URLSearchParams(window.location.search).has('support') ? 'support' : 'users');
   const [users, setUsers] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
@@ -866,6 +868,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
           { id: 'loans', label: 'Capital Financing', icon: Landmark },
           { id: 'cards', label: 'Card Applications', icon: CreditCard },
           { id: 'deposits', label: 'Deposit Reviews', icon: DollarSign },
+          { id: 'support', label: 'Support Inbox', icon: BellRing },
           { id: 'security', label: 'Authorization Codes', icon: Lock },
           { id: 'create-txn', label: 'Issue Transaction', icon: PlusCircle },
           { id: 'communications', label: 'Communications & Payouts', icon: Send }
@@ -890,6 +893,8 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
       {activeSubTab === 'communications' && (
         <AdminCommunications users={users} />
       )}
+
+      {activeSubTab === 'support' && <AdminSupportInbox />}
 
       {activeSubTab === 'security' && (
         <AdminSecurity users={users} />

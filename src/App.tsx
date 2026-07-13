@@ -23,6 +23,7 @@ import AdminPanel from './components/AdminPanel';
 import ProfilePage from './components/ProfilePage';
 import DepositPage from './components/DepositPage';
 import NotificationAlert from './components/NotificationAlert';
+import SupportWidget from './components/SupportWidget';
 import { LanguageCode } from './lib/translations';
 import { RestrictedModal, SelectTransferTypeModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
 import { motion, AnimatePresence } from 'motion/react';
@@ -102,7 +103,7 @@ useEffect(() => {
     localStorage.setItem('app_lang', code);
   };
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).has('support') ? 'admin' : 'dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRestrictedModalOpen, setIsRestrictedModalOpen] = useState(false);
   const [isSelectTypeModalOpen, setIsSelectTypeModalOpen] = useState(false);
@@ -598,6 +599,7 @@ return updated;
         authorizationHold={(currentUser.transfer_flow || currentUser.transferFlow) === 'AUTHORIZATION_HOLD'}
       />
       <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
+      {String(currentUser.role || '').toUpperCase() !== 'ADMIN' && <SupportWidget />}
 
       <SelectTransferTypeModal
         isOpen={isSelectTypeModalOpen}
