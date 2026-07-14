@@ -107,6 +107,9 @@ async function registerUser(userData) {
                 preferred_currency:
                     userData.preferred_currency || 'USD',
 
+                account_type:
+                    String(userData.account_type).trim().toUpperCase(),
+
                 balance: 0,
 
                 email_verified: 0,
@@ -120,6 +123,27 @@ async function registerUser(userData) {
 
                 role: 'USER'
             });
+
+    const db = require('../database/db');
+    const accountSql = db.USE_POSTGRES
+        ? `INSERT INTO accounts (account_number, account_type, currency, balance) VALUES (?, ?, ?, 0) RETURNING *`
+        : `INSERT INTO accounts (account_number, account_type, currency, balance) VALUES (?, ?, ?, 0)`;
+    const accountResult = await db.query(accountSql, [accountNumber, user.account_type, user.preferred_currency]);
+    const account = db.USE_POSTGRES ? accountResult[0] : (await db.query(`SELECT * FROM accounts WHERE account_number = ?`, [accountNumber]))[0];
+    await db.query(`INSERT INTO account_owners (account_id, user_id, role, status) VALUES (?, ?, 'PRIMARY_OWNER', 'ACCEPTED')`, [account.id, user.id]);
+
+    // Attach invitations created before this customer registered. Acceptance is
+    // still blocked until KYC is verified.
+    await db.query(`
+        UPDATE joint_account_invitations
+        SET invitee_user_id = ?
+        WHERE invitee_user_id IS NULL AND status = 'PENDING'
+          AND (
+            LOWER(COALESCE(email, '')) = LOWER(?)
+            OR phone = ?
+            OR LOWER(COALESCE(username, '')) = LOWER(?)
+          )
+    `, [user.id, user.email || '', user.phone || '', user.username || '']);
 
     delete user.password;
 

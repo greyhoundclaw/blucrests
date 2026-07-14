@@ -13,9 +13,11 @@ async function createTransaction(data) {
             status,
             description,
             created_by,
-            transaction_date
+            transaction_date,
+            account_id,
+            performed_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING *
         `
         : `
@@ -29,9 +31,11 @@ async function createTransaction(data) {
             status,
             description,
             created_by,
-            transaction_date
+            transaction_date,
+            account_id,
+            performed_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
     const result = await db.query(
@@ -46,7 +50,9 @@ async function createTransaction(data) {
             data.status || 'COMPLETED',
             data.description || '',
             data.created_by || null,
-            data.transaction_date || null
+            data.transaction_date || null,
+            data.account_id || null,
+            data.performed_by || data.created_by || data.user_id
         ]
     );
 
@@ -73,13 +79,17 @@ async function getUserTransactions(
 
     return await db.query(
         `
-        SELECT *
-        FROM transactions
-        WHERE user_id = ?
-        ORDER BY id DESC
+        SELECT t.*, performer.first_name AS performed_by_first_name,
+               performer.last_name AS performed_by_last_name
+        FROM transactions t
+        LEFT JOIN users performer ON performer.id = COALESCE(t.performed_by, t.created_by, t.user_id)
+        WHERE t.user_id = ? OR t.account_id IN (
+            SELECT account_id FROM account_owners WHERE user_id = ? AND status = 'ACCEPTED'
+        )
+        ORDER BY t.id DESC
         LIMIT 500
         `,
-        [userId]
+        [userId, userId]
     );
 }
 

@@ -65,6 +65,11 @@ function validateRegisterInput(body) {
         );
     }
 
+    const accountType = String(body.account_type || '').trim().toUpperCase();
+    if (!['CHECKING', 'SAVINGS', 'FIXED_DEPOSIT'].includes(accountType)) {
+        errors.push('Account type is required');
+    }
+
     return {
         valid: errors.length === 0,
         errors

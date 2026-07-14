@@ -34,6 +34,7 @@ async function createUser(userData) {
             profile_image,
 
             preferred_currency,
+            account_type,
 
             balance,
 
@@ -44,9 +45,7 @@ async function createUser(userData) {
             role
         )
         VALUES (
-           ?,?,?,?,?,?,?,?,?,?,
-    ?,?,?,?,?,?,?,?,?,?,
-    ?,?,?,?
+           ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         `,
         [
@@ -80,6 +79,8 @@ async function createUser(userData) {
             userData.profile_image,
 
             userData.preferred_currency,
+
+            userData.account_type,
 
             userData.balance,
 
@@ -150,6 +151,7 @@ async function getAllUsers() {
             government_id_number,
             kyc_status,
             preferred_currency,
+            account_type,
             balance,
             transfer_pin,
             transfer_flow,

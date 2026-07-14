@@ -49,6 +49,8 @@ async function initializeDatabase() {
 
             preferred_currency TEXT DEFAULT 'USD',
 
+            account_type TEXT DEFAULT 'CHECKING',
+
             balance REAL DEFAULT 0,
 
             transfer_pin TEXT,
@@ -544,6 +546,55 @@ CREATE TABLE IF NOT EXISTS cards (
 )
 `);
 
+    // ACCOUNTS + OWNERSHIP
+    // users.account_number/balance remain as compatibility mirrors while all
+    // ownership is represented here, allowing one account to have many owners.
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS accounts (
+            id ${primaryKey},
+            account_number TEXT UNIQUE NOT NULL,
+            account_type TEXT NOT NULL DEFAULT 'CHECKING',
+            account_kind TEXT NOT NULL DEFAULT 'PRIMARY',
+            currency TEXT DEFAULT 'USD',
+            balance REAL DEFAULT 0,
+            status TEXT DEFAULT 'ACTIVE',
+            approval_threshold REAL,
+            approval_mode INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS account_owners (
+            id ${primaryKey},
+            account_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL DEFAULT 'JOINT_OWNER',
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(account_id, user_id)
+        )
+    `);
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS joint_account_invitations (
+            id ${primaryKey},
+            account_id INTEGER NOT NULL,
+            invited_by INTEGER NOT NULL,
+            invitee_user_id INTEGER,
+            email TEXT,
+            phone TEXT,
+            customer_id TEXT,
+            username TEXT,
+            token TEXT UNIQUE NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            expires_at TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            responded_at TEXT
+        )
+    `);
+
     const cardColumns = [
         `ALTER TABLE cards ADD COLUMN cardholder_name TEXT`,
         `ALTER TABLE cards ADD COLUMN delivery_address TEXT`,
@@ -570,11 +621,75 @@ CREATE TABLE IF NOT EXISTS cards (
         }
     }
 
+    const sharedAccountColumns = [
+        `ALTER TABLE transactions ADD COLUMN account_id INTEGER`,
+        `ALTER TABLE transactions ADD COLUMN performed_by INTEGER`,
+        `ALTER TABLE accounts ADD COLUMN account_kind TEXT DEFAULT 'PRIMARY'`
+    ];
+
+    for (const statement of sharedAccountColumns) {
+        try {
+            await db.query(statement);
+        } catch (e) {
+            // Compatibility with databases already using account attribution.
+        }
+    }
+
+    // Give every existing user a primary account without changing any account
+    // number or balance. This migration is idempotent on SQLite and Postgres.
+    const existingUsers = await db.query(`
+        SELECT id, account_number, account_type, preferred_currency, balance
+        FROM users
+        WHERE account_number IS NOT NULL AND account_number != ''
+    `);
+
+    for (const user of existingUsers) {
+        let account = (await db.query(`SELECT * FROM accounts WHERE account_number = ?`, [user.account_number]))[0];
+
+        if (!account) {
+            if (db.USE_POSTGRES) {
+                account = (await db.query(`
+                    INSERT INTO accounts (account_number, account_type, currency, balance)
+                    VALUES (?, ?, ?, ?) RETURNING *
+                `, [user.account_number, user.account_type || 'CHECKING', user.preferred_currency || 'USD', Number(user.balance || 0)]))[0];
+            } else {
+                await db.query(`
+                    INSERT INTO accounts (account_number, account_type, currency, balance)
+                    VALUES (?, ?, ?, ?)
+                `, [user.account_number, user.account_type || 'CHECKING', user.preferred_currency || 'USD', Number(user.balance || 0)]);
+                account = (await db.query(`SELECT * FROM accounts WHERE account_number = ?`, [user.account_number]))[0];
+            }
+        }
+
+        const owner = (await db.query(`SELECT id FROM account_owners WHERE account_id = ? AND user_id = ?`, [account.id, user.id]))[0];
+        if (!owner) {
+            await db.query(`
+                INSERT INTO account_owners (account_id, user_id, role, status)
+                VALUES (?, ?, 'PRIMARY_OWNER', 'ACCEPTED')
+            `, [account.id, user.id]);
+        }
+    }
+
+    await db.query(`
+        UPDATE transactions
+        SET account_id = (
+            SELECT ao.account_id FROM account_owners ao
+            WHERE ao.user_id = transactions.user_id AND ao.role = 'PRIMARY_OWNER'
+            ORDER BY ao.id ASC LIMIT 1
+        ),
+        performed_by = COALESCE(performed_by, created_by, user_id)
+        WHERE account_id IS NULL
+    `);
+
     const indexes = [
         `CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`,
         `CREATE INDEX IF NOT EXISTS idx_transactions_user_id_id ON transactions(user_id, id)`,
         `CREATE INDEX IF NOT EXISTS idx_transactions_id ON transactions(id)`,
+        `CREATE INDEX IF NOT EXISTS idx_transactions_account_id_id ON transactions(account_id, id)`,
+        `CREATE INDEX IF NOT EXISTS idx_account_owners_user_id ON account_owners(user_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_account_owners_account_id ON account_owners(account_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_joint_invitations_invitee ON joint_account_invitations(invitee_user_id, status)`,
         `CREATE INDEX IF NOT EXISTS idx_transfers_sender_id ON transfers(sender_id)`,
         `CREATE INDEX IF NOT EXISTS idx_transfers_recipient_user_id ON transfers(recipient_user_id)`,
         `CREATE INDEX IF NOT EXISTS idx_transfers_status_id ON transfers(status, id)`,

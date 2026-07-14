@@ -163,6 +163,10 @@ export default function DashboardOverview({
             <h2 className="text-4xl md:text-6xl font-bold tracking-tighter">
               {formatCurrency(balance)}
             </h2>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-widest">{accountType} Account</span>
+              <span className="text-[10px] font-semibold tracking-[0.14em] text-blue-100">Account •••• {String(activeUser.account_number || activeUser.accountNumber || '').slice(-4)}</span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-6 mt-10 md:mt-16 relative z-10">
             <div>
@@ -289,6 +293,7 @@ export default function DashboardOverview({
                     <div className="min-w-0">
                       <p className="font-bold text-slate-800 group-hover:text-[#003399] transition-colors truncate text-sm">{trx.name}</p>
                       <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-tight truncate">{trx.category} • {trx.date}</p>
+                      {trx.performedBy && <p className="text-[9px] text-[#003399] font-semibold mt-0.5 truncate">Performed by {trx.performedBy}</p>}
                     </div>
                   </div>
                   <div className="text-right ml-4 shrink-0">

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { User, Mail, Phone, Calendar, MapPin, Briefcase, Camera, Check, ShieldCheck, Heart, Globe, DollarSign, Lock } from 'lucide-react';
 import { getTranslation, LanguageCode } from '../lib/translations';
+import JointAccountsPanel from './JointAccountsPanel';
 
 interface ProfilePageProps {
   currentUser: any;
@@ -458,6 +459,8 @@ export default function ProfilePage({ currentUser, onProfileUpdated, lang = 'en'
           </div>
         )}
       </div>
+
+      <JointAccountsPanel />
 
       <form onSubmit={handlePasswordChange} className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-slate-50 space-y-5">
         <div><h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2"><Lock className="w-5 h-5 text-[#003399]" /> Change password</h3><p className="text-xs text-slate-400 mt-1">Use at least eight characters and keep this password unique.</p></div>

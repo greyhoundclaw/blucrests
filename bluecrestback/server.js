@@ -52,6 +52,7 @@ const marketRoutes =
     require('./src/routes/market.routes');
 const depositRoutes = require('./src/routes/deposit.routes');
 const supportRoutes = require('./src/routes/support.routes');
+const jointAccountRoutes = require('./src/routes/joint-account.routes');
 
 
 
@@ -150,6 +151,9 @@ const server = http.createServer((req, res) => {
 
         const supportRouteHandled = await supportRoutes(req, res, body);
         if (supportRouteHandled !== false) return;
+
+        const jointAccountRouteHandled = await jointAccountRoutes(req, res, body);
+        if (jointAccountRouteHandled !== false) return;
 
         const emailRouteHandled =
             await emailRoutes(req, res, body);

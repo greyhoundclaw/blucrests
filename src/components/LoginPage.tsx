@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User, ArrowRight, Smartphone, Globe, Coins, Mail, UserCheck } from 'lucide-react';
+import { Shield, Lock, User, ArrowRight, Smartphone, Globe, Coins, Mail, UserCheck, Landmark, PiggyBank, CalendarClock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LANGUAGES, getTranslation, LanguageCode } from '../lib/translations';
 
@@ -200,6 +200,7 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
   const [regCountry, setRegCountry] = useState('United States of America');
   const [regCurrency, setRegCurrency] = useState('USD');
   const [regDob, setRegDob] = useState('');
+  const [regAccountType, setRegAccountType] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -313,7 +314,7 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
     setError('');
     setSuccessMsg('');
 
-    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone) {
+    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone || !regAccountType) {
       setError('Please fill in all required setup details.');
       return;
     }
@@ -333,6 +334,7 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
           country: regCountry,
           preferred_currency: regCurrency,
           date_of_birth: regDob,
+          account_type: regAccountType,
           transfer_pin: null
         })
       });
@@ -358,6 +360,7 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
       setRegEmail('');
       setRegPhone('');
       setRegPassword('');
+      setRegAccountType('');
       setRegDob('');
     } catch (err: any) {
       setIsLoading(false);
@@ -757,6 +760,22 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                       </div>
 
                     </div>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">Choose your account type <span className="text-rose-500">*</span></legend>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { value: 'CHECKING', label: 'Checking', detail: 'Everyday banking', icon: Landmark },
+                          { value: 'SAVINGS', label: 'Savings', detail: 'Build your savings', icon: PiggyBank },
+                          { value: 'FIXED_DEPOSIT', label: 'Fixed Deposit', detail: 'Save for a set term', icon: CalendarClock }
+                        ].map(option => <label key={option.value} className={`cursor-pointer rounded-2xl border p-3 transition-all ${regAccountType === option.value ? 'border-[#003399] bg-blue-50 ring-2 ring-blue-100' : 'border-slate-100 bg-slate-50 hover:border-blue-200'}`}>
+                          <input type="radio" name="account_type" value={option.value} checked={regAccountType === option.value} onChange={e => setRegAccountType(e.target.value)} className="sr-only" required />
+                          <option.icon className={`w-5 h-5 mb-2 ${regAccountType === option.value ? 'text-[#003399]' : 'text-slate-400'}`}/>
+                          <span className="block text-xs font-extrabold text-slate-800">{option.label}</span>
+                          <span className="block text-[9px] text-slate-400 mt-0.5">{option.detail}</span>
+                        </label>)}
+                      </div>
+                    </fieldset>
 
                     <button 
                       type="submit"

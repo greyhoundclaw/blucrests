@@ -251,7 +251,9 @@ useEffect(() => {
               amount: t.amount,
               type: t.type ? t.type.toLowerCase() : 'debit',
               status: t.status === 'COMPLETED' ? 'Completed' : (t.status === 'PENDING' ? 'Pending' : 'Declined'),
-              category: formatTransactionCategory(t.category)
+              category: formatTransactionCategory(t.category),
+              accountId: t.account_id,
+              performedBy: [t.performed_by_first_name, t.performed_by_last_name].filter(Boolean).join(' ')
             }));
             console.log('MAPPED TRANSACTIONS:', mappedTxns);
             setTransactions(mappedTxns);
@@ -393,7 +395,10 @@ setIsLoggedIn(true);
   };
 
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleUserLogin} lang={lang} onLanguageChange={handleLanguageChange} />;
+    return <>
+      <LoginPage onLogin={handleUserLogin} lang={lang} onLanguageChange={handleLanguageChange} />
+      <SupportWidget isAuthenticated={false} />
+    </>;
   }
 
   const handleActionClick = (id: string) => {
@@ -599,7 +604,7 @@ return updated;
         authorizationHold={(currentUser.transfer_flow || currentUser.transferFlow) === 'AUTHORIZATION_HOLD'}
       />
       <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
-      {String(currentUser.role || '').toUpperCase() !== 'ADMIN' && <SupportWidget />}
+      <SupportWidget />
 
       <SelectTransferTypeModal
         isOpen={isSelectTypeModalOpen}
