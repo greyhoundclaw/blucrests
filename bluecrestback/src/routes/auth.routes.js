@@ -11,6 +11,10 @@ async function authRoutes(req, res, body) {
         return authController.login(req, res, body);
     }
 
+    if (req.method === 'POST' && req.url === '/api/v1/auth/login-code') {
+        return authController.completeLoginCode(req, res, body);
+    }
+
     if (req.method === 'POST' && req.url === '/api/v1/auth/forgot-password') {
         return authController.forgotPassword(req, res, body);
     }

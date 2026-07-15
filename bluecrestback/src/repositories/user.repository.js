@@ -14,6 +14,7 @@ async function createUser(userData) {
             email,
             phone,
             password,
+            login_code_hash,
 
             email_verified,
 
@@ -45,7 +46,7 @@ async function createUser(userData) {
             role
         )
         VALUES (
-           ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+           ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
         )
         `,
         [
@@ -59,6 +60,8 @@ async function createUser(userData) {
             userData.phone,
 
             userData.password,
+
+            userData.login_code_hash,
 
             userData.email_verified,
 

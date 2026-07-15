@@ -23,6 +23,8 @@ async function initializeDatabase() {
 
             password TEXT NOT NULL,
 
+            login_code_hash TEXT,
+
             email_verified INTEGER DEFAULT 0,
 
             gender TEXT,
@@ -183,6 +185,17 @@ CREATE TABLE IF NOT EXISTS transfers (
 
             created_by INTEGER,
 
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS login_challenges (
+            id ${primaryKey},
+            user_id INTEGER NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            attempts INTEGER DEFAULT 0,
+            expires_at TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `);
@@ -780,7 +793,8 @@ CREATE TABLE IF NOT EXISTS cards (
 
     const userSecurityColumns = [
         `ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0`,
-        `ALTER TABLE users ADD COLUMN password_changed_at TEXT`
+        `ALTER TABLE users ADD COLUMN password_changed_at TEXT`,
+        `ALTER TABLE users ADD COLUMN login_code_hash TEXT`
     ];
 
     for (const statement of userSecurityColumns) {

@@ -89,6 +89,14 @@ async function logout(req, res) {
     }
 }
 
+async function completeLoginCode(req, res, body) {
+    try {
+        return successResponse(res, await authService.completeLoginCode(body), 'Login code verified');
+    } catch (error) {
+        return errorResponse(res, error.message, 401);
+    }
+}
+
 async function forgotPassword(req, res, body) {
     try {
         return successResponse(res, await authService.requestPasswordReset(body.email), 'Password reset requested');
@@ -125,6 +133,7 @@ async function adminResetPassword(req, res, body, userId) {
 
 module.exports = {
     login,
+    completeLoginCode,
     me,
     logout
     ,forgotPassword

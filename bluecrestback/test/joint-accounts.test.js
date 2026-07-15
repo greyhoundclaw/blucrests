@@ -24,12 +24,12 @@ test.before(async () => {
     primary = await userService.registerUser({
         first_name: 'Ada', last_name: 'Primary', username: 'ada-primary',
         email: 'ada@example.com', phone: '+15550000001', password: 'Password123!',
-        preferred_currency: 'USD', account_type: 'SAVINGS'
+        preferred_currency: 'USD', account_type: 'SAVINGS', login_code: '1234'
     });
     coOwner = await userService.registerUser({
         first_name: 'Grace', last_name: 'Owner', username: 'grace-owner',
         email: 'grace@example.com', phone: '+15550000002', password: 'Password123!',
-        preferred_currency: 'USD', account_type: 'CHECKING'
+        preferred_currency: 'USD', account_type: 'CHECKING', login_code: '5678'
     });
     await db.query(`UPDATE users SET kyc_status = 'VERIFIED' WHERE id IN (?, ?)`, [primary.id, coOwner.id]);
     primary.kyc_status = 'VERIFIED';

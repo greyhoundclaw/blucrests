@@ -185,6 +185,10 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
   const [step, setStep] = useState(1);
   const [pendingLoginUser, setPendingLoginUser] = useState<any>(null);
   const [pendingToken, setPendingToken] = useState('');
+  const [preAuthToken, setPreAuthToken] = useState('');
+  const [loginCode, setLoginCode] = useState('');
+  const [loginCodeConfirmation, setLoginCodeConfirmation] = useState('');
+  const [loginCodeSetupRequired, setLoginCodeSetupRequired] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [resetRequested, setResetRequested] = useState(false);
@@ -201,6 +205,8 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
   const [regCurrency, setRegCurrency] = useState('USD');
   const [regDob, setRegDob] = useState('');
   const [regAccountType, setRegAccountType] = useState('');
+  const [regLoginCode, setRegLoginCode] = useState('');
+  const [regLoginCodeConfirmation, setRegLoginCodeConfirmation] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -243,13 +249,11 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
         }
 
         const result = data?.data || data;
-        if (result.user?.force_password_change) {
-          setPendingLoginUser(result.user);
-          setPendingToken(result.token);
-          setStep(3);
-        } else {
-          onLogin(result.user, result.token);
-        }
+        setPreAuthToken(result.challenge_token);
+        setLoginCodeSetupRequired(Boolean(result.requires_login_code_setup));
+        setLoginCode('');
+        setLoginCodeConfirmation('');
+        setStep(3);
       } catch (err: any) {
         setIsLoading(false);
         setError('Server authentication connection error.');
@@ -278,6 +282,33 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const verifyLoginCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!/^\d{4}$/.test(loginCode)) return setError('Enter an exact 4-digit login code.');
+    if (loginCodeSetupRequired && loginCode !== loginCodeConfirmation) return setError('Login code confirmation does not match.');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/v1/auth/login-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge_token: preAuthToken, login_code: loginCode, login_code_confirmation: loginCodeConfirmation })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || data.error || 'Login code verification failed.');
+      const result = data?.data || data;
+      if (result.user?.force_password_change) {
+        setPendingLoginUser(result.user);
+        setPendingToken(result.token);
+        setStep(4);
+      } else {
+        onLogin(result.user, result.token);
+      }
+    } catch (requestError: any) {
+      setError(requestError.message);
+    } finally { setIsLoading(false); }
   };
 
   const requestReset = async (e: React.FormEvent) => {
@@ -314,10 +345,12 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
     setError('');
     setSuccessMsg('');
 
-    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone || !regAccountType) {
+    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone || !regAccountType || !regLoginCode) {
       setError('Please fill in all required setup details.');
       return;
     }
+    if (!/^\d{4}$/.test(regLoginCode)) return setError('Your login code must be exactly 4 digits.');
+    if (regLoginCode !== regLoginCodeConfirmation) return setError('Login code confirmation does not match.');
 
     setIsLoading(true);
     try {
@@ -335,6 +368,8 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
           preferred_currency: regCurrency,
           date_of_birth: regDob,
           account_type: regAccountType,
+          login_code: regLoginCode,
+          login_code_confirmation: regLoginCodeConfirmation,
           transfer_pin: null
         })
       });
@@ -361,6 +396,8 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
       setRegPhone('');
       setRegPassword('');
       setRegAccountType('');
+      setRegLoginCode('');
+      setRegLoginCodeConfirmation('');
       setRegDob('');
     } catch (err: any) {
       setIsLoading(false);
@@ -462,6 +499,8 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                     <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all", step >= 2 ? "bg-[#003399] text-white" : "bg-slate-100 text-slate-400")}>2</div>
                     <div className={cn("h-px w-8 transition-colors", step >= 3 ? "bg-[#003399]" : "bg-slate-100")} />
                     <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all", step >= 3 ? "bg-[#003399] text-white" : "bg-slate-100 text-slate-400")}>3</div>
+                    <div className={cn("h-px w-8 transition-colors", step >= 4 ? "bg-[#003399]" : "bg-slate-100")} />
+                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all", step >= 4 ? "bg-[#003399] text-white" : "bg-slate-100 text-slate-400")}>4</div>
                   </div>
 
                   {successMsg && (
@@ -536,6 +575,27 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                   )}
 
                   {step === 3 && (
+                    <form onSubmit={verifyLoginCode} className="space-y-6">
+                      <div className="text-center md:text-left">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">{loginCodeSetupRequired ? 'Create login code' : 'Enter login code'}</label>
+                        <span className="text-slate-400 text-xs font-medium">{loginCodeSetupRequired ? 'This is a one-time setup for your existing account. Choose four digits you can remember.' : 'Enter the four-digit code you created for secure dashboard access.'}</span>
+                      </div>
+                      <div className="relative">
+                        <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                        <input type="password" inputMode="numeric" autoComplete="one-time-code" maxLength={4} value={loginCode} onChange={e => setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="4-digit login code" className="w-full h-14 bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 text-lg tracking-[0.5em] font-extrabold focus:bg-white focus:border-blue-200 outline-none transition-all" required autoFocus />
+                      </div>
+                      {loginCodeSetupRequired && <div className="relative">
+                        <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                        <input type="password" inputMode="numeric" maxLength={4} value={loginCodeConfirmation} onChange={e => setLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Confirm login code" className="w-full h-14 bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 text-lg tracking-[0.5em] font-extrabold focus:bg-white focus:border-blue-200 outline-none transition-all" required />
+                      </div>}
+                      <button type="submit" disabled={isLoading || loginCode.length !== 4} className="w-full h-14 bg-[#003399] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10 active:scale-[0.98] disabled:opacity-50">
+                        {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>{loginCodeSetupRequired ? 'Save Code & Continue' : 'Open Dashboard'} <ArrowRight className="w-5 h-5" /></>}
+                      </button>
+                      <button type="button" onClick={() => { setStep(2); setError(''); setLoginCode(''); }} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest">Back to password</button>
+                    </form>
+                  )}
+
+                  {step === 4 && (
                     <form onSubmit={verifyConfirmPassword} className="space-y-6">
                       <div className="space-y-2">
                         <div className="text-center md:text-left">
@@ -776,6 +836,14 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                         </label>)}
                       </div>
                     </fieldset>
+
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                      <div><p className="text-xs font-extrabold text-slate-800 flex items-center gap-2"><Shield className="w-4 h-4 text-[#003399]"/>Create your 4-digit login code</p><p className="text-[10px] text-slate-500 mt-1">You will enter this after your password whenever you sign in.</p></div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={regLoginCode} onChange={e => setRegLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.4em] text-base" placeholder="4-digit code" required />
+                        <input type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={regLoginCodeConfirmation} onChange={e => setRegLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.4em] text-base" placeholder="Confirm code" required />
+                      </div>
+                    </div>
 
                     <button 
                       type="submit"

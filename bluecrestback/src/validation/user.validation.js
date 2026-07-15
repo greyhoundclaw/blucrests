@@ -70,6 +70,14 @@ function validateRegisterInput(body) {
         errors.push('Account type is required');
     }
 
+    if (!/^\d{4}$/.test(String(body.login_code || ''))) {
+        errors.push('Login code must be exactly 4 digits');
+    }
+
+    if (String(body.login_code || '') !== String(body.login_code_confirmation || '')) {
+        errors.push('Login code confirmation does not match');
+    }
+
     return {
         valid: errors.length === 0,
         errors

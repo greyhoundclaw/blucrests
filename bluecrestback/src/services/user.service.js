@@ -74,6 +74,9 @@ async function registerUser(userData) {
                 password:
                     hashedPassword,
 
+                login_code_hash:
+                    await bcrypt.hash(String(userData.login_code), 10),
+
                 gender:
                     userData.gender,
 
@@ -146,6 +149,7 @@ async function registerUser(userData) {
     `, [user.id, user.email || '', user.phone || '', user.username || '']);
 
     delete user.password;
+    delete user.login_code_hash;
 
     return user;
 }
@@ -161,6 +165,7 @@ async function fetchUsers() {
         user.transfer_pin_set = Boolean(user.transfer_pin);
         delete user.password;
         delete user.transfer_pin;
+        delete user.login_code_hash;
 
         return user;
     });
@@ -233,6 +238,7 @@ async function setTransferPin(
     user.transfer_pin_set = Boolean(user.transfer_pin);
     delete user.password;
     delete user.transfer_pin;
+    delete user.login_code_hash;
 
     return user;
 }
@@ -366,6 +372,7 @@ async function updateUser(userId, data) {
         updated.transfer_pin_set = Boolean(updated.transfer_pin);
         delete updated.password;
         delete updated.transfer_pin;
+        delete updated.login_code_hash;
     }
     return updated;
 }
