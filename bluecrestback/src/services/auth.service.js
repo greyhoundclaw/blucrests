@@ -26,18 +26,27 @@ async function createAuthenticatedSession(user) {
     return { user: safeUser(user), token };
 }
 
+async function createLoginChallenge(userId, purpose = 'LOGIN') {
+    await db.query(`DELETE FROM login_challenges WHERE user_id = ? OR expires_at < ?`, [userId, new Date().toISOString()]);
+    const challengeToken = crypto.randomBytes(48).toString('hex');
+    await db.query(`
+        INSERT INTO login_challenges (user_id, token, purpose, attempts, expires_at)
+        VALUES (?, ?, ?, 0, ?)
+    `, [userId, challengeToken, purpose, new Date(Date.now() + 10 * 60 * 1000).toISOString()]);
+    return challengeToken;
+}
+
+async function createLoginCodeEnrollment(userId) {
+    return createLoginChallenge(userId, 'REGISTRATION');
+}
+
 async function login(email, password) {
     const user = await userRepository.findUserByEmail(String(email || '').trim().toLowerCase());
     if (!user) throw new Error('Account not found.');
     if (!await bcrypt.compare(String(password || ''), user.password)) {
         throw new Error('Incorrect password. Please try again.');
     }
-    await db.query(`DELETE FROM login_challenges WHERE user_id = ? OR expires_at < ?`, [user.id, new Date().toISOString()]);
-    const challengeToken = crypto.randomBytes(48).toString('hex');
-    await db.query(`
-        INSERT INTO login_challenges (user_id, token, attempts, expires_at)
-        VALUES (?, ?, 0, ?)
-    `, [user.id, challengeToken, new Date(Date.now() + 10 * 60 * 1000).toISOString()]);
+    const challengeToken = await createLoginChallenge(user.id);
     return {
         challenge_token: challengeToken,
         requires_login_code_setup: !user.login_code_hash,
@@ -71,6 +80,7 @@ async function completeLoginCode(data) {
     }
 
     await db.query(`DELETE FROM login_challenges WHERE id = ?`, [challenge.id]);
+    if (challenge.purpose === 'REGISTRATION') return { enrolled: true };
     return createAuthenticatedSession(await userRepository.findUserById(user.id));
 }
 
@@ -154,7 +164,7 @@ async function adminResetPassword(userId, data) {
 }
 
 module.exports = {
-    login, completeLoginCode, getCurrentUser,
+    login, completeLoginCode, createLoginCodeEnrollment, getCurrentUser,
     logout: sessionRepository.deleteSession,
     requestPasswordReset, resetPassword, changePassword, adminResetPassword
 };

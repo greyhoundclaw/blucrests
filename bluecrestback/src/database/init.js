@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS transfers (
             id ${primaryKey},
             user_id INTEGER NOT NULL,
             token TEXT UNIQUE NOT NULL,
+            purpose TEXT NOT NULL DEFAULT 'LOGIN',
             attempts INTEGER DEFAULT 0,
             expires_at TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -794,7 +795,8 @@ CREATE TABLE IF NOT EXISTS cards (
     const userSecurityColumns = [
         `ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0`,
         `ALTER TABLE users ADD COLUMN password_changed_at TEXT`,
-        `ALTER TABLE users ADD COLUMN login_code_hash TEXT`
+        `ALTER TABLE users ADD COLUMN login_code_hash TEXT`,
+        `ALTER TABLE login_challenges ADD COLUMN purpose TEXT DEFAULT 'LOGIN'`
     ];
 
     for (const statement of userSecurityColumns) {

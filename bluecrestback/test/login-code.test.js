@@ -35,8 +35,22 @@ test('password login creates only a short-lived code challenge', async () => {
     assert.equal((await db.query(`SELECT COUNT(*) AS count FROM sessions`))[0].count, 0);
 });
 
+test('post-registration enrollment saves the code without creating a dashboard session', async () => {
+    const user = (await db.query(`SELECT * FROM users WHERE email = 'existing@example.com'`))[0];
+    const enrollmentToken = await authService.createLoginCodeEnrollment(user.id);
+    const result = await authService.completeLoginCode({
+        challenge_token: enrollmentToken,
+        login_code: '2468',
+        login_code_confirmation: '2468'
+    });
+    assert.equal(result.enrolled, true);
+    assert.equal(result.token, undefined);
+    assert.equal((await db.query(`SELECT COUNT(*) AS count FROM sessions`))[0].count, 0);
+});
+
 test('an existing customer enrolls a code once and receives a real session', async () => {
     const challenge = await authService.login('existing@example.com', 'Password123!');
+    await db.query(`UPDATE users SET login_code_hash = NULL WHERE email = 'existing@example.com'`);
     const result = await authService.completeLoginCode({
         challenge_token: challenge.challenge_token,
         login_code: '2468',

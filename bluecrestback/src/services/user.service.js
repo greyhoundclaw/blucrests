@@ -74,8 +74,7 @@ async function registerUser(userData) {
                 password:
                     hashedPassword,
 
-                login_code_hash:
-                    await bcrypt.hash(String(userData.login_code), 10),
+                login_code_hash: null,
 
                 gender:
                     userData.gender,

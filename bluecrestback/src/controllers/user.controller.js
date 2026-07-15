@@ -7,6 +7,7 @@ const {
 
 const userService =
     require('../services/user.service');
+const authService = require('../services/auth.service');
 
 const {
     successResponse,
@@ -31,6 +32,8 @@ async function register(req, res, body) {
 
         const user =
             await userService.registerUser(body);
+
+        user.login_code_enrollment_token = await authService.createLoginCodeEnrollment(user.id);
 
         await activityService.logActivity({
             user_id: user.id,

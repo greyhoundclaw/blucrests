@@ -176,7 +176,7 @@ const COUNTRY_CURRENCY_LIST = [
 ];
 
 export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPageProps) {
-  const [view, setView] = useState<'login' | 'register' | 'forgot'>('login');
+  const [view, setView] = useState<'login' | 'register' | 'register-code' | 'forgot'>('login');
   
   // Login State
   const [email, setEmail] = useState('');
@@ -207,6 +207,7 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
   const [regAccountType, setRegAccountType] = useState('');
   const [regLoginCode, setRegLoginCode] = useState('');
   const [regLoginCodeConfirmation, setRegLoginCodeConfirmation] = useState('');
+  const [registrationEnrollmentToken, setRegistrationEnrollmentToken] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -345,12 +346,10 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
     setError('');
     setSuccessMsg('');
 
-    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone || !regAccountType || !regLoginCode) {
+    if (!regEmail || !regPassword || !regFirstName || !regLastName || !regUsername || !regPhone || !regAccountType) {
       setError('Please fill in all required setup details.');
       return;
     }
-    if (!/^\d{4}$/.test(regLoginCode)) return setError('Your login code must be exactly 4 digits.');
-    if (regLoginCode !== regLoginCodeConfirmation) return setError('Login code confirmation does not match.');
 
     setIsLoading(true);
     try {
@@ -368,8 +367,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
           preferred_currency: regCurrency,
           date_of_birth: regDob,
           account_type: regAccountType,
-          login_code: regLoginCode,
-          login_code_confirmation: regLoginCodeConfirmation,
           transfer_pin: null
         })
       });
@@ -382,11 +379,12 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
         return;
       }
 
-      // Success! Switch back to login view, preload registered email
-      setSuccessMsg('Account registered successfully! Please log in to your profile.');
+      const registeredUser = data?.data || data;
+      setRegistrationEnrollmentToken(registeredUser.login_code_enrollment_token);
       setEmail(regEmail);
-      setView('login');
-      setStep(1);
+      setRegLoginCode('');
+      setRegLoginCodeConfirmation('');
+      setView('register-code');
       
       // Cleanup registration inputs
       setRegFirstName('');
@@ -396,13 +394,32 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
       setRegPhone('');
       setRegPassword('');
       setRegAccountType('');
-      setRegLoginCode('');
-      setRegLoginCodeConfirmation('');
       setRegDob('');
     } catch (err: any) {
       setIsLoading(false);
       setError('Could not connect to registration services.');
     }
+  };
+
+  const completeRegistrationLoginCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setSuccessMsg('');
+    if (!/^\d{4}$/.test(regLoginCode)) return setError('Create an exact 4-digit login code.');
+    if (regLoginCode !== regLoginCodeConfirmation) return setError('Login code confirmation does not match.');
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/v1/auth/login-code', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge_token: registrationEnrollmentToken, login_code: regLoginCode, login_code_confirmation: regLoginCodeConfirmation })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || data.error || 'Could not create login code.');
+      setRegLoginCode(''); setRegLoginCodeConfirmation(''); setRegistrationEnrollmentToken('');
+      setPassword(''); setStep(1); setView('login');
+      setSuccessMsg('Account created successfully. Your login code is ready — please sign in.');
+    } catch (requestError: any) {
+      setError(requestError.message);
+    } finally { setIsLoading(false); }
   };
 
   return (
@@ -441,12 +458,12 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
               </div>
 
               <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-                {view === 'login' ? t('welcome', 'Welcome Back') : view === 'forgot' ? 'Reset Password' : t('createAccountTitle', 'Create Account')}
+                {view === 'login' ? t('welcome', 'Welcome Back') : view === 'forgot' ? 'Reset Password' : view === 'register-code' ? 'Secure Your Account' : t('createAccountTitle', 'Create Account')}
               </h1>
               <p className="text-blue-100/80 text-base mb-10">
                 {view === 'login'
                   ? t('welcomeDesc', 'Access your premier financial portal securely.') 
-                  : view === 'forgot' ? 'Recover access using a short-lived email verification code.' : t('signUpDesc', 'Join us to manage registers dynamically across multiple browsers.')}
+                  : view === 'forgot' ? 'Recover access using a short-lived email verification code.' : view === 'register-code' ? 'Finish account setup with your private four-digit login code.' : t('signUpDesc', 'Join us to manage registers dynamically across multiple browsers.')}
               </p>
             </div>
 
@@ -662,6 +679,20 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                   : <form onSubmit={completeReset} className="space-y-4"><input value={resetCode} onChange={e => setResetCode(e.target.value.replace(/\D/g, ''))} className="field-control" placeholder="6-digit reset code" required /><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="field-control" placeholder="New password" required /><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="field-control" placeholder="Confirm new password" required /><button disabled={isLoading} className="w-full py-4 rounded-xl bg-[#003399] text-white font-bold text-sm">{isLoading ? 'Updating…' : 'Reset Password'}</button></form>}
                   <button onClick={() => { setView('login'); setResetRequested(false); setError(''); }} className="w-full mt-5 text-xs font-bold text-slate-400">Back to sign in</button>
                 </motion.div>
+              ) : view === 'register-code' ? (
+                <motion.div key="register-code-view" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} className="max-w-md mx-auto w-full">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto md:mx-0 mb-5"><UserCheck className="w-8 h-8"/></div>
+                  <h2 className="text-3xl font-bold text-slate-900 mb-2">Account Created</h2>
+                  <p className="text-sm text-slate-500 mb-2">Your banking account has been created successfully.</p>
+                  <p className="text-sm text-slate-500 mb-6">Now create the four-digit login code you’ll use after your password whenever you sign in.</p>
+                  {error && <div className="mb-4 p-3 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold">{error}</div>}
+                  <form onSubmit={completeRegistrationLoginCode} className="space-y-4">
+                    <div><label className="form-label">Create 4-digit login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCode} onChange={e => setRegLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" placeholder="••••" required autoFocus /></div>
+                    <div><label className="form-label">Confirm login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCodeConfirmation} onChange={e => setRegLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" placeholder="••••" required /></div>
+                    <button disabled={isLoading || regLoginCode.length !== 4 || regLoginCodeConfirmation.length !== 4} className="w-full h-14 rounded-xl bg-[#003399] text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50">{isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <>Create Login Code <ArrowRight className="w-5 h-5"/></>}</button>
+                  </form>
+                  <button type="button" onClick={() => { setView('login'); setStep(1); setError(''); setSuccessMsg('Finish setting up your login code after signing in.'); }} className="w-full mt-5 text-xs font-bold text-slate-400">Finish later and sign in</button>
+                </motion.div>
               ) : (
                 <motion.div 
                   key="register-view"
@@ -836,14 +867,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                         </label>)}
                       </div>
                     </fieldset>
-
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
-                      <div><p className="text-xs font-extrabold text-slate-800 flex items-center gap-2"><Shield className="w-4 h-4 text-[#003399]"/>Create your 4-digit login code</p><p className="text-[10px] text-slate-500 mt-1">You will enter this after your password whenever you sign in.</p></div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <input type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={regLoginCode} onChange={e => setRegLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.4em] text-base" placeholder="4-digit code" required />
-                        <input type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={regLoginCodeConfirmation} onChange={e => setRegLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.4em] text-base" placeholder="Confirm code" required />
-                      </div>
-                    </div>
 
                     <button 
                       type="submit"
