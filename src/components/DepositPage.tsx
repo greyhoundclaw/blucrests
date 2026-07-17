@@ -12,7 +12,7 @@ const readImage = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-export default function DepositPage({ formatCurrency }: { formatCurrency?: (amount: number) => string }) {
+export default function DepositPage({ formatCurrency, targetAccountId, targetAccountLabel, compact = false, onSubmitted }: { formatCurrency?: (amount: number) => string; targetAccountId?: number; targetAccountLabel?: string; compact?: boolean; onSubmitted?: () => void }) {
   const [method, setMethod] = useState<Method>('GIFTCARD');
   const [amount, setAmount] = useState('');
   const [cardName, setCardName] = useState('');
@@ -47,22 +47,23 @@ export default function DepositPage({ formatCurrency }: { formatCurrency?: (amou
       setMessage('');
       await apiRequest('/api/v1/deposits', {
         method: 'POST',
-        body: JSON.stringify({ method, amount: numericAmount, card_name: cardName.trim(), bitcoin_address: method === 'BITCOIN' ? BITCOIN_ADDRESS : '', images })
+        body: JSON.stringify({ method, amount: numericAmount, card_name: cardName.trim(), bitcoin_address: method === 'BITCOIN' ? BITCOIN_ADDRESS : '', images, ...(targetAccountId ? { account_id: targetAccountId } : {}) })
       });
-      setMessage(`Your ${formatCurrency ? formatCurrency(numericAmount) : numericAmount} deposit request was submitted for review.`);
+      setMessage(`Your ${formatCurrency ? formatCurrency(numericAmount) : numericAmount} deposit request${targetAccountLabel ? ` to ${targetAccountLabel}` : ''} was submitted for review.`);
       setAmount(''); setCardName(''); setImages([]);
+      onSubmitted?.();
     } catch (error: any) {
       setMessage(error.message || 'Could not submit the deposit.');
     } finally { setBusy(false); }
   };
 
-  return <div className="max-w-3xl mx-auto py-4 md:py-8">
-    <p className="text-[10px] font-bold text-[#003399] uppercase tracking-[0.2em]">Fund your account</p>
-    <h2 className="text-2xl font-extrabold text-slate-900 mt-1 mb-7">Deposit</h2>
+  return <div className={compact ? '' : 'max-w-3xl mx-auto py-4 md:py-8'}>
+    {!compact && <><p className="text-[10px] font-bold text-[#003399] uppercase tracking-[0.2em]">Fund your account</p><h2 className="text-2xl font-extrabold text-slate-900 mt-1 mb-7">Deposit</h2></>}
+    {targetAccountLabel && <div className="mb-4 rounded-2xl bg-blue-50 border border-blue-100 p-3 text-xs font-bold text-[#003399]">Deposit destination: {targetAccountLabel}</div>}
     <div className="grid grid-cols-2 gap-3 mb-6">
       {([{ id: 'GIFTCARD', label: 'Gift card', icon: Gift }, { id: 'BITCOIN', label: 'Bitcoin address', icon: Bitcoin }] as const).map(option => <button key={option.id} onClick={() => { setMethod(option.id); setMessage(''); }} className={`p-5 rounded-2xl border text-left flex items-center gap-3 ${method === option.id ? 'bg-blue-50 border-blue-200 text-[#003399]' : 'bg-white border-slate-100 text-slate-600'}`}><option.icon className="w-5 h-5"/><span className="text-sm font-bold">{option.label}</span></button>)}
     </div>
-    <form onSubmit={submit} className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 space-y-5">
+    <form onSubmit={submit} className={`bg-white rounded-[2rem] border border-slate-100 ${compact ? 'p-4 md:p-5' : 'p-6 md:p-8'} space-y-5`}>
       <label className="block"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</span><input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="field-control mt-2" placeholder="0.00" /></label>
       {method === 'GIFTCARD' ? <>
         <label className="block"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Name of card</span><input value={cardName} onChange={e => setCardName(e.target.value)} className="field-control mt-2" placeholder="e.g. Apple, Amazon, Steam" /></label>

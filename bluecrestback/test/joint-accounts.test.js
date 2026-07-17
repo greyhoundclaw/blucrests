@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const bcrypt = require('bcrypt');
 
 const databasePath = path.join(__dirname, 'joint-accounts.test.db');
 fs.rmSync(databasePath, { force: true });
@@ -14,6 +15,7 @@ const sqlite = require('../src/database/sqlite');
 const userService = require('../src/services/user.service');
 const jointAccountService = require('../src/services/joint-account.service');
 const ledgerService = require('../src/services/ledger.service');
+const depositRoutes = require('../src/routes/deposit.routes');
 
 let primary;
 let coOwner;
@@ -87,4 +89,33 @@ test('a shared ledger entry is visible to both owners with performer attribution
     assert.equal(Number(second.balance), 750);
     assert.equal(first.transactions[0].performed_by_first_name, 'Ada');
     assert.equal(second.transactions[0].description, 'Joint account opening deposit');
+});
+
+test('either owner can move personal funds into the same joint balance', async () => {
+    await ledgerService.postEntry({ user_id: coOwner.id, type: 'CREDIT', amount: 500, currency: 'USD', description: 'Personal funding source' });
+    await db.query(`UPDATE users SET transfer_pin = ? WHERE id = ?`, [await bcrypt.hash('4321', 4), coOwner.id]);
+    const authenticatedOwner = (await db.query(`SELECT * FROM users WHERE id = ?`, [coOwner.id]))[0];
+
+    await jointAccountService.fundFromPersonalAccount(jointAccount.id, authenticatedOwner, { amount: 125, pin: '4321' });
+
+    const primaryView = await jointAccountService.getDashboard(primary.id);
+    const coOwnerView = await jointAccountService.getDashboard(coOwner.id);
+    assert.equal(Number(primaryView.accounts.find(account => account.id === jointAccount.id).balance), 875);
+    assert.equal(Number(coOwnerView.accounts.find(account => account.id === jointAccount.id).balance), 875);
+    assert.equal(Number((await db.query(`SELECT balance FROM users WHERE id = ?`, [coOwner.id]))[0].balance), 375);
+});
+
+test('an approved deposit request credits the selected joint account exactly once', async () => {
+    const inserted = await db.query(`INSERT INTO deposit_requests (user_id, account_id, method, amount, images_json, status) VALUES (?, ?, 'BITCOIN', 50, '[]', 'PENDING')`, [coOwner.id, jointAccount.id]);
+    const depositId = Number(inserted.lastInsertRowid);
+    await db.query(`INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'joint-deposit-admin', ?)`, [new Date(Date.now() + 60_000).toISOString()]);
+    const response = { status: 0, payload: null, writeHead(status) { this.status = status; }, end(body) { this.payload = JSON.parse(body); } };
+    const request = { method: 'PATCH', url: `/api/v1/admin/deposits/${depositId}`, headers: { authorization: 'Bearer joint-deposit-admin' } };
+
+    await depositRoutes(request, response, { status: 'APPROVED' });
+    await depositRoutes(request, response, { status: 'APPROVED' });
+
+    assert.equal(response.status, 200);
+    assert.equal(Number((await db.query(`SELECT balance FROM accounts WHERE id = ?`, [jointAccount.id]))[0].balance), 925);
+    assert.equal((await db.query(`SELECT COUNT(*) AS count FROM transactions WHERE reference = ?`, [`DEP-${depositId}`]))[0].count, 1);
 });

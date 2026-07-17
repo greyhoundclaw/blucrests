@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '../lib/api';
-import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, LoaderCircle, Plus, Send, ShieldCheck, UserMinus, Users, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Landmark, LoaderCircle, Plus, Send, ShieldCheck, UserMinus, Users, WalletCards, X } from 'lucide-react';
+import DepositPage from './DepositPage';
 
 type Owner = { id: number; user_id: number; role: string; status: string; first_name: string; last_name: string; email: string };
 type SharedTransaction = { id: number; type: string; amount: number; currency: string; description: string; created_at: string; transaction_date?: string; performed_by_first_name?: string; performed_by_last_name?: string };
@@ -9,7 +10,7 @@ type Invitation = { id: number; status: string; account_number: string; account_
 
 const accountLabel = (value: string) => String(value || 'CHECKING').replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase());
 
-export default function JointAccountsPanel() {
+export default function JointAccountsPanel({ currentUser, onBalancesChanged }: { currentUser?: any; onBalancesChanged?: () => void } = {}) {
   const [accounts, setAccounts] = useState<JointAccount[]>([]);
   const [receivedInvitations, setReceivedInvitations] = useState<Invitation[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -18,6 +19,10 @@ export default function JointAccountsPanel() {
   const [accountType, setAccountType] = useState('CHECKING');
   const [identifierType, setIdentifierType] = useState('EMAIL');
   const [identifier, setIdentifier] = useState('');
+  const [fundFor, setFundFor] = useState<number | null>(null);
+  const [fundingSource, setFundingSource] = useState<'PERSONAL' | 'DEPOSIT'>('PERSONAL');
+  const [fundAmount, setFundAmount] = useState('');
+  const [fundPin, setFundPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
@@ -36,7 +41,11 @@ export default function JointAccountsPanel() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 6000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   const run = async (action: () => Promise<any>, success: string) => {
     try {
@@ -63,6 +72,20 @@ export default function JointAccountsPanel() {
     await run(() => apiRequest(`/api/v1/joint-accounts/${accountId}/invitations`, {
       method: 'POST', body: JSON.stringify({ identifier_type: identifierType, invite_identifier: identifier.trim() })
     }), 'Joint owner invitation sent.');
+  };
+
+  const fundFromPersonal = async (event: FormEvent, account: JointAccount) => {
+    event.preventDefault();
+    const amount = Number(fundAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return setError('Enter a valid funding amount.');
+    try {
+      setBusy(true); setError(''); setNotice('');
+      await apiRequest(`/api/v1/joint-accounts/${account.id}/fund`, { method: 'POST', body: JSON.stringify({ amount, pin: fundPin }) });
+      setFundAmount(''); setFundPin(''); setFundFor(null);
+      setNotice(`${formatMoney(account, amount)} was transferred from your personal balance into the joint account.`);
+      await load();
+      onBalancesChanged?.();
+    } catch (requestError: any) { setError(requestError.message); } finally { setBusy(false); }
   };
 
   const formatMoney = (account: JointAccount, amount = account.balance) => {
@@ -102,6 +125,14 @@ export default function JointAccountsPanel() {
 
         {expandedId === account.id && <div className="border-t border-slate-100 p-5 space-y-6 bg-slate-50/60">
           <div className="grid sm:grid-cols-3 gap-3"><div className="rounded-2xl bg-[#003399] text-white p-4"><p className="text-[9px] uppercase tracking-widest text-blue-200 font-bold">Shared balance</p><p className="text-xl font-extrabold mt-2">{formatMoney(account)}</p></div><div className="rounded-2xl bg-white border border-slate-100 p-4"><p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Account number</p><p className="text-sm font-extrabold mt-2 font-mono">{account.account_number}</p></div><div className="rounded-2xl bg-white border border-slate-100 p-4"><p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Shared cards</p><p className="text-xs font-bold mt-2 text-slate-500">Future-ready</p></div></div>
+
+          <div className="rounded-3xl bg-white border border-blue-100 p-4 md:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h5 className="text-sm font-extrabold text-slate-800">Fund this joint account</h5><p className="text-[10px] text-slate-400 mt-1">Either owner can add money and both will see the updated shared balance.</p></div><button type="button" onClick={() => setFundFor(fundFor === account.id ? null : account.id)} className="px-4 py-2.5 rounded-xl bg-[#003399] text-white text-xs font-bold">{fundFor === account.id ? 'Close funding' : 'Add money'}</button></div>
+            {fundFor === account.id && <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+              <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => setFundingSource('PERSONAL')} className={`rounded-2xl border p-3 text-left ${fundingSource === 'PERSONAL' ? 'border-blue-300 bg-blue-50 text-[#003399]' : 'border-slate-100 text-slate-500'}`}><Landmark className="w-4 h-4 mb-2"/><span className="block text-xs font-extrabold">From personal balance</span></button><button type="button" onClick={() => setFundingSource('DEPOSIT')} className={`rounded-2xl border p-3 text-left ${fundingSource === 'DEPOSIT' ? 'border-blue-300 bg-blue-50 text-[#003399]' : 'border-slate-100 text-slate-500'}`}><WalletCards className="w-4 h-4 mb-2"/><span className="block text-xs font-extrabold">Gift card or Bitcoin</span></button></div>
+              {fundingSource === 'PERSONAL' ? <form onSubmit={event => fundFromPersonal(event, account)} className="space-y-3"><div className="grid sm:grid-cols-2 gap-3"><label><span className="form-label">Amount</span><input type="number" min="0.01" step="0.01" value={fundAmount} onChange={e => setFundAmount(e.target.value)} className="field-control" placeholder="0.00" required/></label><label><span className="form-label">Transfer PIN</span><input type="password" inputMode="numeric" value={fundPin} onChange={e => setFundPin(e.target.value.replace(/\D/g, ''))} className="field-control" placeholder="Your transfer PIN" required/></label></div>{currentUser && <p className="text-[10px] text-slate-400">Available personal balance: {new Intl.NumberFormat(undefined, { style: 'currency', currency: currentUser.preferred_currency || currentUser.preferredCurrency || account.currency }).format(Number(currentUser.balance || 0))}</p>}<button disabled={busy} className="px-5 py-3 rounded-xl bg-[#003399] text-white text-xs font-bold flex items-center gap-2">{busy && <LoaderCircle className="w-4 h-4 animate-spin"/>}Transfer into joint account</button></form> : <DepositPage compact targetAccountId={account.id} targetAccountLabel={`joint account •••• ${account.account_number.slice(-4)}`} formatCurrency={amount => formatMoney(account, amount)} onSubmitted={load}/>}
+            </div>}
+          </div>
 
           <div><div className="flex items-center justify-between mb-3"><h5 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Owners</h5>{account.owner_role === 'PRIMARY_OWNER' && <button type="button" onClick={() => setInviteFor(inviteFor === account.id ? null : account.id)} className="text-[10px] font-bold text-[#003399] flex items-center gap-1"><Plus className="w-3 h-3"/>Invite co-owner</button>}</div>
             <div className="space-y-2">{account.owners.filter(owner => owner.status === 'ACCEPTED').map(owner => <div key={owner.id} className="rounded-2xl bg-white border border-slate-100 p-3 flex items-center justify-between gap-3"><div><p className="text-xs font-extrabold text-slate-700">{owner.first_name} {owner.last_name}</p><p className="text-[9px] text-slate-400 mt-0.5">{owner.email} · {owner.role.replaceAll('_', ' ')}</p></div>{account.owner_role === 'PRIMARY_OWNER' && owner.role !== 'PRIMARY_OWNER' && <button disabled={busy} title="Remove owner" onClick={() => run(() => apiRequest(`/api/v1/joint-accounts/${account.id}/owners/${owner.id}`, { method: 'DELETE' }), 'Joint owner removed.')} className="w-9 h-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center"><UserMinus className="w-4 h-4"/></button>}</div>)}</div>

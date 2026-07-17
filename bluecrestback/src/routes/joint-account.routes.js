@@ -21,6 +21,10 @@ async function jointAccountRoutes(req, res, body) {
         if (invitation && req.method === 'POST') {
             return successResponse(res, await service.respondToInvitation(Number(invitation[1]), req.user, invitation[2] === 'accept' ? 'ACCEPTED' : 'DECLINED'), `Invitation ${invitation[2]}ed`);
         }
+        const fund = req.url.match(/^\/api\/v1\/joint-accounts\/(\d+)\/fund$/);
+        if (fund && req.method === 'POST') {
+            return successResponse(res, await service.fundFromPersonalAccount(Number(fund[1]), req.user, body), 'Joint account funded');
+        }
         const leave = req.url.match(/^\/api\/v1\/joint-accounts\/(\d+)\/leave$/);
         if (leave && req.method === 'POST') {
             return successResponse(res, await service.leaveAccount(Number(leave[1]), req.user), 'You left the joint account');

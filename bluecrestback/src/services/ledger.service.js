@@ -138,7 +138,7 @@ async function postEntry(data) {
                     title: 'Joint account activity',
                     message: `${performer?.first_name || 'A joint owner'} ${performer?.last_name || ''} completed a ${data.type.toLowerCase()} of ${amount} on your shared account.`,
                     type: 'INFO',
-                    action_link: '/profile',
+                    action_link: '/joint-accounts',
                     created_by: performerId
                 });
             }

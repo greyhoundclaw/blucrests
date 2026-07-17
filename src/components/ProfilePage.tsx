@@ -460,7 +460,7 @@ export default function ProfilePage({ currentUser, onProfileUpdated, lang = 'en'
         )}
       </div>
 
-      <JointAccountsPanel />
+      <JointAccountsPanel currentUser={currentUser} onBalancesChanged={onProfileUpdated} />
 
       <form onSubmit={handlePasswordChange} className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-slate-50 space-y-5">
         <div><h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2"><Lock className="w-5 h-5 text-[#003399]" /> Change password</h3><p className="text-xs text-slate-400 mt-1">Use at least eight characters and keep this password unique.</p></div>

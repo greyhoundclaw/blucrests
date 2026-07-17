@@ -24,6 +24,7 @@ import ProfilePage from './components/ProfilePage';
 import DepositPage from './components/DepositPage';
 import NotificationAlert from './components/NotificationAlert';
 import SupportWidget from './components/SupportWidget';
+import JointAccountsPanel from './components/JointAccountsPanel';
 import { LanguageCode } from './lib/translations';
 import { RestrictedModal, SelectTransferTypeModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
 import { motion, AnimatePresence } from 'motion/react';
@@ -435,6 +436,8 @@ setIsLoggedIn(true);
         return <DashboardOverview onActionClick={handleActionClick} balance={balance} transactions={transactions} user={currentUser} formatUserCurrency={formatUserCurrency} />;
       case 'deposit':
         return <DepositPage formatCurrency={formatUserCurrency} />;
+      case 'joint-accounts':
+        return <div className="max-w-5xl mx-auto py-4 md:py-8"><JointAccountsPanel currentUser={currentUser} onBalancesChanged={syncUserData} /></div>;
       case 'local-transfer':
       case 'intl-transfer':
         if (currentUser.transferPin === null || currentUser.transferPin === undefined || currentUser.transferPin === "") {

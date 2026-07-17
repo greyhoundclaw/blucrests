@@ -82,6 +82,7 @@ async function initializeDatabase() {
     await db.query(`
         CREATE TABLE IF NOT EXISTS deposit_requests (
             id ${primaryKey}, user_id INTEGER NOT NULL, method TEXT NOT NULL,
+            account_id INTEGER,
             amount REAL NOT NULL, card_name TEXT, bitcoin_address TEXT,
             images_json TEXT, status TEXT DEFAULT 'PENDING',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -601,6 +602,7 @@ CREATE TABLE IF NOT EXISTS cards (
             phone TEXT,
             customer_id TEXT,
             username TEXT,
+            requires_kyc INTEGER DEFAULT 0,
             token TEXT UNIQUE NOT NULL,
             status TEXT NOT NULL DEFAULT 'PENDING',
             expires_at TEXT NOT NULL,
@@ -638,7 +640,9 @@ CREATE TABLE IF NOT EXISTS cards (
     const sharedAccountColumns = [
         `ALTER TABLE transactions ADD COLUMN account_id INTEGER`,
         `ALTER TABLE transactions ADD COLUMN performed_by INTEGER`,
-        `ALTER TABLE accounts ADD COLUMN account_kind TEXT DEFAULT 'PRIMARY'`
+        `ALTER TABLE accounts ADD COLUMN account_kind TEXT DEFAULT 'PRIMARY'`,
+        `ALTER TABLE deposit_requests ADD COLUMN account_id INTEGER`,
+        `ALTER TABLE joint_account_invitations ADD COLUMN requires_kyc INTEGER DEFAULT 0`
     ];
 
     for (const statement of sharedAccountColumns) {

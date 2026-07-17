@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const db = require('../database/db');
 const notifications = require('../repositories/notification.repository');
 const emailService = require('./email.service');
+const bcrypt = require('bcrypt');
+const ledgerService = require('./ledger.service');
 
 const ACCOUNT_TYPES = ['CHECKING', 'SAVINGS', 'FIXED_DEPOSIT'];
 
@@ -69,9 +71,9 @@ async function createInvitation(accountId, inviter, data) {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const sql = db.USE_POSTGRES
-        ? `INSERT INTO joint_account_invitations (account_id, invited_by, invitee_user_id, email, phone, customer_id, username, token, status, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?) RETURNING *`
-        : `INSERT INTO joint_account_invitations (account_id, invited_by, invitee_user_id, email, phone, customer_id, username, token, status, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`;
-    const result = await db.query(sql, [account.id, inviter.id, user?.id || null, fields.email, fields.phone, fields.customer_id, fields.username, token, expiresAt]);
+        ? `INSERT INTO joint_account_invitations (account_id, invited_by, invitee_user_id, email, phone, customer_id, username, requires_kyc, token, status, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?) RETURNING *`
+        : `INSERT INTO joint_account_invitations (account_id, invited_by, invitee_user_id, email, phone, customer_id, username, requires_kyc, token, status, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`;
+    const result = await db.query(sql, [account.id, inviter.id, user?.id || null, fields.email, fields.phone, fields.customer_id, fields.username, user ? 0 : 1, token, expiresAt]);
     const invitation = db.USE_POSTGRES ? result[0] : (await db.query(`SELECT * FROM joint_account_invitations WHERE token = ?`, [token]))[0];
 
     if (user) {
@@ -80,7 +82,7 @@ async function createInvitation(accountId, inviter, data) {
             title: 'Joint account invitation',
             message: `${inviter.first_name} ${inviter.last_name} invited you to share a ${account.account_type.replaceAll('_', ' ').toLowerCase()} account.`,
             type: 'INFO',
-            action_link: '/profile',
+            action_link: '/joint-accounts',
             created_by: inviter.id
         });
     }
@@ -162,7 +164,7 @@ async function respondToInvitation(invitationId, user, status) {
             await db.query(`UPDATE joint_account_invitations SET status = 'EXPIRED' WHERE id = ?`, [invitation.id]);
             throw new Error('Invitation has expired');
         }
-        if (responseStatus === 'ACCEPTED' && String(user.kyc_status || '').toUpperCase() !== 'VERIFIED') {
+        if (responseStatus === 'ACCEPTED' && Number(invitation.requires_kyc || 0) === 1 && String(user.kyc_status || '').toUpperCase() !== 'VERIFIED') {
             throw new Error('Complete KYC verification before accepting a joint account invitation');
         }
         await db.query(`UPDATE joint_account_invitations SET status = ?, responded_at = ? WHERE id = ?`, [responseStatus, new Date().toISOString(), invitation.id]);
@@ -176,7 +178,7 @@ async function respondToInvitation(invitationId, user, status) {
             title: `Joint account invitation ${responseStatus.toLowerCase()}`,
             message: `${user.first_name} ${user.last_name} ${responseStatus.toLowerCase()} your joint account invitation.`,
             type: responseStatus === 'ACCEPTED' ? 'SUCCESS' : 'WARNING',
-            action_link: '/profile',
+            action_link: '/joint-accounts',
             created_by: user.id
         });
         return { ...invitation, status: responseStatus };
@@ -190,14 +192,46 @@ async function leaveAccount(accountId, user) {
     return { left: true };
 }
 
+async function fundFromPersonalAccount(accountId, user, data) {
+    const account = await accountForOwner(accountId, user.id);
+    const amount = Number(data.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid funding amount');
+    if (!user.transfer_pin) throw new Error('Create your transfer PIN before funding a joint account');
+    if (!await bcrypt.compare(String(data.pin || ''), user.transfer_pin)) throw new Error('Invalid transfer PIN');
+    if (Number(user.balance || 0) < amount) throw new Error('Insufficient personal account balance');
+
+    const reference = ledgerService.generateReference('JNT');
+    await db.withTransaction(async () => {
+        await ledgerService.postEntry({
+            user_id: user.id, reference: `${reference}-OUT`, type: 'DEBIT',
+            category: 'joint_account_funding', amount,
+            currency: account.currency || user.preferred_currency,
+            description: `Transfer to joint account ending ${account.account_number.slice(-4)}`,
+            performed_by: user.id
+        });
+        await ledgerService.postEntry({
+            user_id: user.id, account_id: account.id, reference: `${reference}-IN`, type: 'CREDIT',
+            category: 'joint_account_funding', amount,
+            currency: account.currency || user.preferred_currency,
+            description: `${user.first_name} ${user.last_name} funded the joint account`,
+            performed_by: user.id
+        });
+    });
+
+    return {
+        account: (await db.query(`SELECT * FROM accounts WHERE id = ?`, [account.id]))[0],
+        personal_balance: Number((await db.query(`SELECT balance FROM users WHERE id = ?`, [user.id]))[0].balance)
+    };
+}
+
 async function removeOwner(accountId, ownerId, user) {
     await accountForOwner(accountId, user.id, true);
     const owner = (await db.query(`SELECT * FROM account_owners WHERE account_id = ? AND id = ?`, [accountId, ownerId]))[0];
     if (!owner) throw new Error('Owner not found');
     if (owner.role === 'PRIMARY_OWNER') throw new Error('The primary owner cannot be removed');
     await db.query(`UPDATE account_owners SET status = 'REMOVED' WHERE id = ?`, [owner.id]);
-    await notifications.createNotification({ user_id: owner.user_id, title: 'Joint account access updated', message: 'The primary owner removed you from a joint account.', type: 'WARNING', action_link: '/profile', created_by: user.id });
+    await notifications.createNotification({ user_id: owner.user_id, title: 'Joint account access updated', message: 'The primary owner removed you from a joint account.', type: 'WARNING', action_link: '/joint-accounts', created_by: user.id });
     return { removed: true };
 }
 
-module.exports = { openJointAccount, getDashboard, createInvitation, respondToInvitation, leaveAccount, removeOwner, normalizeAccountType };
+module.exports = { openJointAccount, getDashboard, createInvitation, respondToInvitation, fundFromPersonalAccount, leaveAccount, removeOwner, normalizeAccountType };

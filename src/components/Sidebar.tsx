@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Landmark,
   Bell
-  ,WalletCards
+  ,WalletCards,
+  Users
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getTranslation, LanguageCode } from '../lib/translations';
@@ -38,6 +39,7 @@ const MENU_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'details', label: 'Account Details', icon: User },
     { id: 'summary', label: 'Account Summary', icon: FileText },
+    { id: 'joint-accounts', label: 'Joint Accounts', icon: Users },
     { id: 'stocks', label: 'Stocks & Trading', icon: TrendingUp },
   ]},
   { section: 'FUND TRANSFER', items: [
@@ -59,6 +61,7 @@ const labelKeyMap: Record<string, string> = {
   dashboard: 'dashboard',
   details: 'accountDetails',
   summary: 'accountSummary',
+  'joint-accounts': 'jointAccounts',
   stocks: 'stocksTrading',
   'local-transfer': 'localTransfer',
   'intl-transfer': 'internationalTransfer',
