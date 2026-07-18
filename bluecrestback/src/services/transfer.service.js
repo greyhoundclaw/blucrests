@@ -16,6 +16,7 @@ const db =
     require('../database/db');
 const transferVerificationService =
     require('./transfer-verification.service');
+const emailService = require('./email.service');
 
 function debitReference(transferId) {
     return `TXN-TRF-${transferId}-DEBIT`;
@@ -23,6 +24,14 @@ function debitReference(transferId) {
 
 function creditReference(transferId) {
     return `TXN-TRF-${transferId}-CREDIT`;
+}
+
+function queueTransferStatusEmail(user, transfer, status = transfer?.status) {
+    if (!user || !transfer || !['PENDING', 'RESTRICTED'].includes(String(status || '').toUpperCase())) return;
+    setImmediate(() => {
+        emailService.sendTransferStatusEmail(user, transfer, status)
+            .catch(error => console.error('Transfer status email failed:', error.message));
+    });
 }
 
 async function createTransfer(
@@ -112,7 +121,7 @@ async function createTransfer(
         const shouldCompleteImmediately =
             user.transfer_flow === 'COMPLETED';
 
-        return await db.withTransaction(async () => {
+        const createdTransfer = await db.withTransaction(async () => {
             const transfer = await transferRepository
                 .createTransfer({
 
@@ -163,6 +172,8 @@ async function createTransfer(
 
             return transfer;
         });
+        queueTransferStatusEmail(user, createdTransfer);
+        return createdTransfer;
     }
 
     if (
@@ -184,7 +195,7 @@ async function createTransfer(
         const shouldCompleteImmediately =
             user.transfer_flow === 'COMPLETED';
 
-        return await db.withTransaction(async () => {
+        const createdTransfer = await db.withTransaction(async () => {
             const transfer = await transferRepository
                 .createTransfer({
                     sender_id: user.id,
@@ -217,6 +228,8 @@ async function createTransfer(
 
             return transfer;
         });
+        queueTransferStatusEmail(user, createdTransfer);
+        return createdTransfer;
     }
 
     throw new Error(
@@ -232,7 +245,8 @@ async function fetchTransfers(user) {
 }
 
 async function completeTransfer(transferId) {
-    return await db.withTransaction(async () => {
+    let receivedEmail = null;
+    const completedTransfer = await db.withTransaction(async () => {
         const transfer = await transferRepository.getTransferById(transferId);
 
         if (!transfer) {
@@ -283,6 +297,8 @@ async function completeTransfer(transferId) {
                 status: 'COMPLETED',
                 description: `Internal Transfer from ${sender.first_name} ${sender.last_name} (${sender.account_number})`
             });
+
+            receivedEmail = { recipient, sender, transfer };
         }
 
         return await transferRepository.updateTransferStatus(
@@ -290,27 +306,57 @@ async function completeTransfer(transferId) {
             'COMPLETED'
         );
     });
+
+    if (receivedEmail) {
+        // Defer delivery until any surrounding transfer transaction has committed.
+        setImmediate(() => {
+            emailService.sendTransferReceivedEmail(
+                receivedEmail.recipient,
+                receivedEmail.sender,
+                receivedEmail.transfer
+            ).catch(error => console.error('Transfer receipt email failed:', error.message));
+        });
+    }
+
+    return completedTransfer;
 }
 
 async function changeTransferStatus(
     transferId,
     status
 ) {
-    if (status === 'COMPLETED') {
+    const normalizedStatus = String(status || '').toUpperCase();
+    if (!['PENDING', 'COMPLETED', 'RESTRICTED', 'REJECTED', 'DECLINED'].includes(normalizedStatus)) {
+        throw new Error('Invalid transfer status');
+    }
+
+    const existingTransfer = await transferRepository.getTransferById(transferId);
+    if (!existingTransfer) throw new Error('Transfer not found');
+
+    if (normalizedStatus === 'COMPLETED') {
         return await completeTransfer(transferId);
-    } else if (status === 'RESTRICTED' || status === 'REJECTED' || status === 'DECLINED') {
-        const transfer = await transferRepository.getTransferById(transferId);
-        if (transfer && transfer.status !== 'COMPLETED') {
-            await ledgerService.markEntryStatus(debitReference(transfer.id), 'DECLINED');
-            await ledgerService.markEntryStatus(creditReference(transfer.id), 'DECLINED');
+    } else if (normalizedStatus === 'RESTRICTED' || normalizedStatus === 'REJECTED' || normalizedStatus === 'DECLINED') {
+        if (existingTransfer.status !== 'COMPLETED') {
+            await ledgerService.markEntryStatus(debitReference(existingTransfer.id), 'DECLINED');
+            await ledgerService.markEntryStatus(creditReference(existingTransfer.id), 'DECLINED');
         }
     }
 
-    return await transferRepository
+    const updatedTransfer = await transferRepository
         .updateTransferStatus(
             transferId,
-            status
+            normalizedStatus
         );
+
+    if (
+        ['PENDING', 'RESTRICTED'].includes(normalizedStatus) &&
+        String(existingTransfer.status).toUpperCase() !== normalizedStatus
+    ) {
+        const sender = await userRepository.findUserById(existingTransfer.sender_id);
+        queueTransferStatusEmail(sender, updatedTransfer, normalizedStatus);
+    }
+
+    return updatedTransfer;
 }
 
 

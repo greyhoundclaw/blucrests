@@ -17,12 +17,19 @@ const transferRepository = require('../src/repositories/transfer.repository');
 const transactionRepository = require('../src/repositories/transaction.repository');
 const loanRepository = require('../src/repositories/loan.repository');
 const transferService = require('../src/services/transfer.service');
+const userService = require('../src/services/user.service');
 const ledgerService = require('../src/services/ledger.service');
 const loanService = require('../src/services/loan.service');
 const withdrawalService = require('../src/services/withdrawal.service');
 const reconciliationService = require('../src/services/reconciliation.service');
 const notificationService = require('../src/services/notification.service');
 const emailService = require('../src/services/email.service');
+const transferEmails = [];
+const transferStatusEmails = [];
+const accountRestrictionEmails = [];
+const originalTransferEmail = emailService.sendTransferReceivedEmail;
+const originalTransferStatusEmail = emailService.sendTransferStatusEmail;
+const originalAccountRestrictionEmail = emailService.sendAccountRestrictionEmail;
 
 async function createUser(id, accountNumber, email, pin = '1234') {
     const password = await bcrypt.hash('Password123!', 4);
@@ -72,12 +79,24 @@ async function verificationToken(userId, suffix) {
 }
 
 test.before(async () => {
+    emailService.sendTransferReceivedEmail = async (recipient, sender, transfer) => {
+        transferEmails.push({ recipient, sender, transfer });
+    };
+    emailService.sendTransferStatusEmail = async (user, transfer, status) => {
+        transferStatusEmails.push({ user, transfer, status });
+    };
+    emailService.sendAccountRestrictionEmail = async user => {
+        accountRestrictionEmails.push(user);
+    };
     await initializeDatabase();
     await createUser(2, '2000000002', 'sender@example.com');
     await createUser(3, '2000000003', 'recipient@example.com');
 });
 
 test.after(() => {
+    emailService.sendTransferReceivedEmail = originalTransferEmail;
+    emailService.sendTransferStatusEmail = originalTransferStatusEmail;
+    emailService.sendAccountRestrictionEmail = originalAccountRestrictionEmail;
     sqlite.close();
     fs.rmSync(databasePath, { force: true });
 });
@@ -129,6 +148,7 @@ test('invalid or unaffordable transfer amounts create no ledger entry', async ()
 });
 
 test('pending external transfer moves no money and completion debits exactly once', async () => {
+    const statusEmailCount = transferStatusEmails.length;
     const sender = await userRepository.findUserById(2);
     const token = await verificationToken(sender.id, 'external');
     const transfer = await transferService.createTransfer(sender, {
@@ -143,6 +163,9 @@ test('pending external transfer moves no money and completion debits exactly onc
     });
 
     assert.equal(transfer.status, 'PENDING');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(transferStatusEmails.length, statusEmailCount + 1);
+    assert.equal(transferStatusEmails.at(-1).status, 'PENDING');
     assert.equal(Number((await userRepository.findUserById(sender.id)).balance), 1000);
 
     await transferService.completeTransfer(transfer.id);
@@ -153,6 +176,30 @@ test('pending external transfer moves no money and completion debits exactly onc
         .filter(entry => entry.reference === `TXN-TRF-${transfer.id}-DEBIT`);
     assert.equal(entries.length, 1);
     assert.equal(entries[0].status, 'COMPLETED');
+});
+
+test('admin restriction of a pending transfer emails its sender once', async () => {
+    const sender = await userRepository.findUserById(2);
+    const token = await verificationToken(sender.id, 'restriction');
+    const transfer = await transferService.createTransfer(sender, {
+        transfer_type: 'EXTERNAL',
+        recipient_name: 'Restricted Recipient',
+        recipient_bank: 'Example Bank',
+        recipient_account_number: '7777777777',
+        amount: 10,
+        pin: '1234',
+        verification_token: token
+    });
+    await new Promise(resolve => setImmediate(resolve));
+    const beforeRestriction = transferStatusEmails.length;
+
+    const restricted = await transferService.changeTransferStatus(transfer.id, 'RESTRICTED');
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(restricted.status, 'RESTRICTED');
+    assert.equal(transferStatusEmails.length, beforeRestriction + 1);
+    assert.equal(transferStatusEmails.at(-1).status, 'RESTRICTED');
+    assert.equal(transferStatusEmails.at(-1).user.id, sender.id);
 });
 
 test('rejecting a pending transfer moves no money', async () => {
@@ -192,9 +239,12 @@ test('internal transfer debits sender and credits recipient exactly once', async
 
     await transferService.completeTransfer(transfer.id);
     await transferService.completeTransfer(transfer.id);
+    await new Promise(resolve => setImmediate(resolve));
 
     assert.equal(Number((await userRepository.findUserById(2)).balance), 650);
     assert.equal(Number((await userRepository.findUserById(3)).balance), 1100);
+    assert.equal(transferEmails.length, 1);
+    assert.equal(transferEmails[0].recipient.id, 3);
 });
 
 test('loan disbursement credits exactly once', async () => {
@@ -310,4 +360,16 @@ test('email settings expose environment fallback and validate saved configuratio
         ),
         /SMTP host is required/
     );
+});
+
+test('admin account restriction emails the customer only on transition', async () => {
+    const before = accountRestrictionEmails.length;
+    await userService.updateUser(3, { transfer_flow: 'RESTRICTED' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(accountRestrictionEmails.length, before + 1);
+    assert.equal(accountRestrictionEmails.at(-1).id, 3);
+
+    await userService.updateUser(3, { transfer_flow: 'RESTRICTED' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(accountRestrictionEmails.length, before + 1);
 });

@@ -5,6 +5,7 @@ const userRepository =
 
 const ledgerService =
     require('./ledger.service');
+const emailService = require('./email.service');
 
 function generateAccountNumber() {
 
@@ -322,11 +323,25 @@ async function updateUser(userId, data) {
     if (!existing) {
         throw new Error('User not found');
     }
+    const requestedEmail = data.email !== undefined
+        ? String(data.email).trim().toLowerCase()
+        : existing.email;
+    const emailChanged = requestedEmail !== String(existing.email).trim().toLowerCase();
+    const accountBecomingRestricted =
+        (String(data.status || '').toUpperCase() === 'RESTRICTED' && String(existing.status || '').toUpperCase() !== 'RESTRICTED') ||
+        (String(data.transfer_flow || '').toUpperCase() === 'RESTRICTED' && String(existing.transfer_flow || '').toUpperCase() !== 'RESTRICTED');
+    if (emailChanged) {
+        const emailOwner = await userRepository.findUserByEmail(requestedEmail);
+        if (emailOwner && Number(emailOwner.id) !== Number(userId)) {
+            throw new Error('Email already exists');
+        }
+    }
+
     const merged = {
         first_name: data.first_name !== undefined ? data.first_name : existing.first_name,
         last_name: data.last_name !== undefined ? data.last_name : existing.last_name,
         username: data.username !== undefined ? data.username : existing.username,
-        email: data.email !== undefined ? data.email : existing.email,
+        email: requestedEmail,
         phone: data.phone !== undefined ? data.phone : existing.phone,
         gender: data.gender !== undefined ? data.gender : existing.gender,
         date_of_birth: data.date_of_birth !== undefined ? data.date_of_birth : existing.date_of_birth,
@@ -344,6 +359,12 @@ async function updateUser(userId, data) {
         two_factor_enabled: data.two_factor_enabled !== undefined ? (data.two_factor_enabled ? 1 : 0) : existing.two_factor_enabled
     };
     await userRepository.updateUser(userId, merged);
+
+    if (emailChanged) {
+        const db = require('../database/db');
+        await db.query('UPDATE users SET email_verified = 0 WHERE id = ?', [userId]);
+        await db.query('DELETE FROM email_verifications WHERE user_id = ?', [userId]);
+    }
 
     if (data.balance !== undefined && data.balance !== null && data.balance !== existing.balance) {
         await changeUserBalance(userId, data.balance);
@@ -372,6 +393,13 @@ async function updateUser(userId, data) {
         delete updated.password;
         delete updated.transfer_pin;
         delete updated.login_code_hash;
+    }
+
+    if (accountBecomingRestricted && updated) {
+        setImmediate(() => {
+            emailService.sendAccountRestrictionEmail(updated)
+                .catch(error => console.error('Account restriction email failed:', error.message));
+        });
     }
     return updated;
 }

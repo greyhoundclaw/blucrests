@@ -1,5 +1,6 @@
 const authService =
     require('../services/auth.service');
+const emailService = require('../services/email.service');
 
 const {
     successResponse,
@@ -131,6 +132,30 @@ async function adminResetPassword(req, res, body, userId) {
     }
 }
 
+async function sendEmailVerification(req, res) {
+    try {
+        return successResponse(
+            res,
+            await emailService.issueEmailVerification(req.user),
+            'Confirmation code sent'
+        );
+    } catch (error) {
+        return errorResponse(res, error.message, 400);
+    }
+}
+
+async function verifyEmail(req, res, body) {
+    try {
+        return successResponse(
+            res,
+            await emailService.verifyEmailCode(req.user, body.code),
+            'Email address confirmed'
+        );
+    } catch (error) {
+        return errorResponse(res, error.message, 400);
+    }
+}
+
 module.exports = {
     login,
     completeLoginCode,
@@ -140,4 +165,6 @@ module.exports = {
     ,resetPassword
     ,changePassword
     ,adminResetPassword
+    ,sendEmailVerification
+    ,verifyEmail
 };

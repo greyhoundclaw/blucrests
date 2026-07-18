@@ -8,6 +8,7 @@ const {
 const userService =
     require('../services/user.service');
 const authService = require('../services/auth.service');
+const emailService = require('../services/email.service');
 
 const {
     successResponse,
@@ -34,6 +35,13 @@ async function register(req, res, body) {
             await userService.registerUser(body);
 
         user.login_code_enrollment_token = await authService.createLoginCodeEnrollment(user.id);
+
+        try {
+            await emailService.issueEmailVerification(user);
+        } catch (emailError) {
+            // Registration must remain successful if the mail provider is temporarily unavailable.
+            console.error('Registration verification email failed:', emailError.message);
+        }
 
         await activityService.logActivity({
             user_id: user.id,

@@ -10,7 +10,6 @@ import {
   CreditCard, 
   Shield, 
   Key,
-  ChevronRight,
   LogOut,
   Menu, 
   X,
@@ -183,17 +182,6 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
       </nav>
 
       <div className="p-4 mt-auto space-y-4 shrink-0">
-        <div className="bg-slate-900 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest">{t('savingsGoal', 'Savings Goal')}</span>
-            <span className="text-xs text-white font-bold">74%</span>
-          </div>
-          <div className="w-full bg-slate-700 h-1 rounded-full mb-3">
-            <div className="bg-[#00f2fe] h-full rounded-full" style={{ width: '74%' }} />
-          </div>
-          <p className="text-[10px] text-slate-400 leading-tight">You're $2,400 away from your summer trip goal.</p>
-        </div>
-
         <button 
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-rose-500 hover:bg-rose-50 transition-all font-bold text-sm"

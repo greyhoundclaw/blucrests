@@ -186,6 +186,16 @@ export default function ProfilePage({ currentUser, onProfileUpdated, lang = 'en'
           <p className="text-blue-100/60 text-xs flex items-center justify-center md:justify-start gap-1 font-medium">
             <Mail className="w-3.5 h-3.5" /> {currentUser.email}
           </p>
+          <div className="pt-1">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest ${
+              Number(currentUser.email_verified) === 1
+                ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-200'
+                : 'border-amber-400/30 bg-amber-500/20 text-amber-200'
+            }`}>
+              {Number(currentUser.email_verified) === 1 ? <Check className="h-3 w-3" /> : <Mail className="h-3 w-3" />}
+              Email {Number(currentUser.email_verified) === 1 ? 'Verified' : 'Pending'}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-col items-center md:items-end gap-2 shrink-0">

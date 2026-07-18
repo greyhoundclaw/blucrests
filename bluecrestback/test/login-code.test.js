@@ -13,6 +13,7 @@ const initializeDatabase = require('../src/database/init');
 const db = require('../src/database/db');
 const sqlite = require('../src/database/sqlite');
 const authService = require('../src/services/auth.service');
+const emailService = require('../src/services/email.service');
 
 test.before(async () => {
     await initializeDatabase();
@@ -70,4 +71,30 @@ test('future logins reject the wrong code and accept the enrolled code', async (
     );
     const result = await authService.completeLoginCode({ challenge_token: challenge.challenge_token, login_code: '2468' });
     assert.ok(result.token);
+});
+
+test('email remains pending until the six-digit confirmation code is accepted', async () => {
+    const user = (await db.query(`SELECT * FROM users WHERE email = 'existing@example.com'`))[0];
+    const issued = await emailService.issueEmailVerification(user, { deliver: false });
+
+    assert.match(issued.development_code, /^\d{6}$/);
+    await assert.rejects(
+        emailService.verifyEmailCode(user, '000000'),
+        /Invalid confirmation code/
+    );
+    assert.notEqual(
+        Number((await db.query(`SELECT email_verified FROM users WHERE id = ?`, [user.id]))[0].email_verified),
+        1
+    );
+
+    const verified = await emailService.verifyEmailCode(user, issued.development_code);
+    assert.equal(verified.verified, true);
+    assert.equal(
+        Number((await db.query(`SELECT email_verified FROM users WHERE id = ?`, [user.id]))[0].email_verified),
+        1
+    );
+    assert.equal(
+        Number((await db.query(`SELECT COUNT(*) AS count FROM email_verifications WHERE user_id = ?`, [user.id]))[0].count),
+        0
+    );
 });

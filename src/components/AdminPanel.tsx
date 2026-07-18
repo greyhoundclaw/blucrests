@@ -1330,6 +1330,13 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
+                          <button
+                            onClick={() => handleUpdateTransferStatus(t.id, 'RESTRICTED')}
+                            className="p-1 bg-slate-800 text-white rounded hover:bg-slate-900"
+                            title="Restrict Transfer & Notify Customer"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       )}
                     </td>

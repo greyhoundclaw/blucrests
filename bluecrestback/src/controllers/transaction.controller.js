@@ -1,5 +1,7 @@
 const transactionService =
     require('../services/transaction.service');
+const emailService = require('../services/email.service');
+const userRepository = require('../repositories/user.repository');
 
 const {
     successResponse,
@@ -27,6 +29,14 @@ async function create(
                             ? req.user.id
                             : null
                 });
+
+        try {
+            const recipient = await userRepository.findUserById(body.user_id);
+            await emailService.sendSingleTransactionEmail(recipient, transaction);
+        } catch (emailError) {
+            // A provider outage must not reverse a completed ledger entry.
+            console.error('Single transaction email failed:', emailError.message);
+        }
 
 
 

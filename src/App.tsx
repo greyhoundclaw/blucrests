@@ -25,6 +25,7 @@ import DepositPage from './components/DepositPage';
 import NotificationAlert from './components/NotificationAlert';
 import SupportWidget from './components/SupportWidget';
 import JointAccountsPanel from './components/JointAccountsPanel';
+import EmailVerificationBanner from './components/EmailVerificationBanner';
 import { LanguageCode } from './lib/translations';
 import { RestrictedModal, SelectTransferTypeModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
 import { motion, AnimatePresence } from 'motion/react';
@@ -587,6 +588,9 @@ return updated;
         <Header onMenuClick={() => setIsSidebarOpen(true)} onNotificationsClick={() => setActiveTab('notifications')} user={currentUser} />
 
         <div className="p-4 md:p-8 flex-1 overflow-y-auto">
+          {String(currentUser.role || '').toUpperCase() !== 'ADMIN' && (
+            <EmailVerificationBanner user={currentUser} onVerified={syncUserData} />
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}

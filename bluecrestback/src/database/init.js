@@ -105,6 +105,8 @@ async function initializeDatabase() {
 
             expires_at TEXT NOT NULL,
 
+            attempts INTEGER DEFAULT 0,
+
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     `);
@@ -803,11 +805,23 @@ CREATE TABLE IF NOT EXISTS cards (
         `ALTER TABLE login_challenges ADD COLUMN purpose TEXT DEFAULT 'LOGIN'`
     ];
 
+    const emailVerificationColumns = [
+        `ALTER TABLE email_verifications ADD COLUMN attempts INTEGER DEFAULT 0`
+    ];
+
     for (const statement of userSecurityColumns) {
         try {
             await db.query(statement);
         } catch (e) {
             // Compatibility with existing databases.
+        }
+    }
+
+    for (const statement of emailVerificationColumns) {
+        try {
+            await db.query(statement);
+        } catch (e) {
+            // Compatibility with databases that already have this protection.
         }
     }
 

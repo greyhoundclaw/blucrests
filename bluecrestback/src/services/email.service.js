@@ -1,5 +1,7 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
+const db = require('../database/db');
 const emailRepository = require('../repositories/email.repository');
 const userRepository = require('../repositories/user.repository');
 
@@ -112,6 +114,190 @@ async function sendEmail({ to, subject, html, text, attachments = [] }) {
     });
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function emailShell(title, firstName, content) {
+    return `
+        <div style="background:#f5f7fb;padding:32px 16px;font-family:Arial,sans-serif;color:#172033">
+            <div style="max-width:600px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #e7eaf0">
+                <div style="background:#003399;color:#fff;padding:24px 28px">
+                    <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.8">Blue Crest Bank</div>
+                    <h1 style="font-size:22px;margin:8px 0 0">${escapeHtml(title)}</h1>
+                </div>
+                <div style="padding:28px">
+                    <p style="margin-top:0">Hello ${escapeHtml(firstName || 'Customer')},</p>
+                    ${content}
+                    <p style="font-size:12px;color:#6b7280;margin:28px 0 0">If you did not expect this message, contact Blue Crest support immediately.</p>
+                </div>
+            </div>
+        </div>`;
+}
+
+function money(amount, currency = 'USD') {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: String(currency || 'USD').toUpperCase()
+        }).format(Number(amount));
+    } catch (_error) {
+        return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
+    }
+}
+
+async function issueEmailVerification(user, options = {}) {
+    if (!user?.id || !user?.email) throw new Error('A valid user is required');
+    if (Number(user.email_verified) === 1) return { verified: true, already_verified: true };
+
+    const existingRows = await db.query(
+        'SELECT created_at FROM email_verifications WHERE user_id = ? ORDER BY id DESC',
+        [user.id]
+    );
+    const createdAt = existingRows[0]?.created_at;
+    const createdAtText = String(createdAt || '');
+    const lastIssuedAt = createdAt instanceof Date
+        ? createdAt.getTime()
+        : createdAtText
+            ? new Date(createdAtText.includes('T') ? createdAtText : `${createdAtText.replace(' ', 'T')}Z`).getTime()
+            : 0;
+    if (options.deliver !== false && lastIssuedAt && Date.now() - lastIssuedAt < 60_000) {
+        throw new Error('Please wait one minute before requesting another code');
+    }
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    await db.query('DELETE FROM email_verifications WHERE user_id = ?', [user.id]);
+    await db.query(
+        'INSERT INTO email_verifications (user_id, token, expires_at, attempts) VALUES (?, ?, ?, 0)',
+        [user.id, codeHash, expiresAt]
+    );
+
+    if (options.deliver !== false) {
+        const subject = 'Confirm your Blue Crest email address';
+        const text = `Hello ${user.first_name || 'Customer'}, your Blue Crest email confirmation code is ${code}. It expires in 30 minutes.`;
+        const html = emailShell(subject, user.first_name, `
+            <p>Use the confirmation code below to verify your email address.</p>
+            <div style="font-size:30px;font-weight:800;letter-spacing:8px;text-align:center;background:#f1f5ff;color:#003399;border-radius:14px;padding:18px;margin:24px 0">${code}</div>
+            <p style="color:#4b5563">This code expires in 30 minutes. Never share it with anyone.</p>`);
+        await sendEmail({ to: user.email, subject, text, html });
+    }
+
+    const result = { verified: false, sent: options.deliver !== false, expires_at: expiresAt };
+    if (process.env.NODE_ENV !== 'production') result.development_code = code;
+    return result;
+}
+
+async function verifyEmailCode(user, rawCode) {
+    if (!user?.id) throw new Error('Authentication is required');
+    if (Number(user.email_verified) === 1) return { verified: true, already_verified: true };
+
+    const code = String(rawCode || '').trim();
+    if (!/^\d{6}$/.test(code)) throw new Error('Enter the 6-digit confirmation code');
+
+    const rows = await db.query(
+        'SELECT * FROM email_verifications WHERE user_id = ? ORDER BY id DESC',
+        [user.id]
+    );
+    const record = rows[0];
+    if (!record) throw new Error('Request a new confirmation code');
+    if (new Date(record.expires_at).getTime() < Date.now()) {
+        await db.query('DELETE FROM email_verifications WHERE user_id = ?', [user.id]);
+        throw new Error('Confirmation code has expired. Request a new one');
+    }
+    if (Number(record.attempts || 0) >= 5) {
+        await db.query('DELETE FROM email_verifications WHERE user_id = ?', [user.id]);
+        throw new Error('Too many incorrect attempts. Request a new code');
+    }
+    if (!await bcrypt.compare(code, record.token)) {
+        await db.query('UPDATE email_verifications SET attempts = attempts + 1 WHERE id = ?', [record.id]);
+        throw new Error('Invalid confirmation code');
+    }
+
+    await db.withTransaction(async () => {
+        await db.query('UPDATE users SET email_verified = 1 WHERE id = ?', [user.id]);
+        await db.query('DELETE FROM email_verifications WHERE user_id = ?', [user.id]);
+    });
+    return { verified: true };
+}
+
+async function sendTransferReceivedEmail(recipient, sender, transfer) {
+    if (!recipient?.email || transfer?.transfer_type !== 'INTERNAL') return null;
+    const amount = money(transfer.amount, transfer.currency || recipient.preferred_currency);
+    const senderName = `${sender?.first_name || ''} ${sender?.last_name || ''}`.trim() || 'another Blue Crest account';
+    const subject = `Transfer received: ${amount}`;
+    const text = `Hello ${recipient.first_name || 'Customer'}, you received ${amount} from ${senderName}. Reference: ${transfer.reference || transfer.id}.`;
+    const html = emailShell('Transfer received', recipient.first_name, `
+        <p>A transfer has been credited to your Blue Crest account.</p>
+        <div style="background:#f8fafc;border-radius:14px;padding:18px;margin:20px 0">
+            <p style="margin:0 0 10px"><strong>Amount:</strong> ${escapeHtml(amount)}</p>
+            <p style="margin:0 0 10px"><strong>From:</strong> ${escapeHtml(senderName)}</p>
+            <p style="margin:0"><strong>Reference:</strong> ${escapeHtml(transfer.reference || transfer.id)}</p>
+        </div>`);
+    return sendEmail({ to: recipient.email, subject, text, html });
+}
+
+async function sendSingleTransactionEmail(user, transaction) {
+    if (!user?.email || !transaction) return null;
+    const amount = money(transaction.amount, transaction.currency || user.preferred_currency);
+    const isCredit = transaction.type === 'CREDIT';
+    const title = isCredit ? 'Account credited' : 'Account debited';
+    const subject = `${title}: ${amount}`;
+    const text = `Hello ${user.first_name || 'Customer'}, your account was ${isCredit ? 'credited' : 'debited'} ${amount}. ${transaction.description || ''} Reference: ${transaction.reference}.`;
+    const html = emailShell(title, user.first_name, `
+        <p>A single account transaction has been added to your account.</p>
+        <div style="background:#f8fafc;border-radius:14px;padding:18px;margin:20px 0">
+            <p style="margin:0 0 10px"><strong>Amount:</strong> ${escapeHtml(amount)}</p>
+            <p style="margin:0 0 10px"><strong>Description:</strong> ${escapeHtml(transaction.description || title)}</p>
+            <p style="margin:0"><strong>Reference:</strong> ${escapeHtml(transaction.reference)}</p>
+        </div>`);
+    return sendEmail({ to: user.email, subject, text, html });
+}
+
+async function sendTransferStatusEmail(user, transfer, status) {
+    if (!user?.email || !transfer) return null;
+    const normalizedStatus = String(status || transfer.status || '').toUpperCase();
+    if (!['PENDING', 'RESTRICTED'].includes(normalizedStatus)) return null;
+
+    const amount = money(transfer.amount, transfer.currency || user.preferred_currency);
+    const pending = normalizedStatus === 'PENDING';
+    const title = pending ? 'Transfer pending review' : 'Transfer restricted';
+    const subject = `${title}: ${amount}`;
+    const explanation = pending
+        ? 'Your transfer was received and is currently pending administrative review. No completed debit will occur until it is approved.'
+        : 'Your transfer has been restricted and cannot be completed at this time. Please contact Blue Crest support for assistance.';
+    const text = `Hello ${user.first_name || 'Customer'}, ${explanation} Amount: ${amount}. Transfer ID: ${transfer.id}.`;
+    const html = emailShell(title, user.first_name, `
+        <p>${escapeHtml(explanation)}</p>
+        <div style="background:${pending ? '#fffbeb' : '#fff1f2'};border-radius:14px;padding:18px;margin:20px 0">
+            <p style="margin:0 0 10px"><strong>Status:</strong> ${normalizedStatus}</p>
+            <p style="margin:0 0 10px"><strong>Amount:</strong> ${escapeHtml(amount)}</p>
+            <p style="margin:0"><strong>Transfer ID:</strong> ${escapeHtml(transfer.id)}</p>
+        </div>`);
+    return sendEmail({ to: user.email, subject, text, html });
+}
+
+async function sendAccountRestrictionEmail(user) {
+    if (!user?.email) return null;
+    const subject = 'Important: Your Blue Crest account has been restricted';
+    const explanation = 'Your account transfer access has been restricted. To ask about this restriction or restore access, please contact Blue Crest support.';
+    const text = `Hello ${user.first_name || 'Customer'}, ${explanation} Please contact Blue Crest support for assistance.`;
+    const html = emailShell('Account restricted', user.first_name, `
+        <p>${escapeHtml(explanation)}</p>
+        <div style="background:#fff1f2;color:#9f1239;border-radius:14px;padding:18px;margin:20px 0">
+            <strong>Status: RESTRICTED</strong>
+        </div>
+        <p>Please contact Blue Crest support if you need assistance.</p>`);
+    return sendEmail({ to: user.email, subject, text, html });
+}
+
 async function sendAdminEmail(admin, data) {
     const subject = String(data.subject || '').trim();
     const html = String(data.html || data.message || '').trim();
@@ -153,6 +339,12 @@ async function sendAdminEmail(admin, data) {
 
 module.exports = {
     sendEmail,
+    issueEmailVerification,
+    verifyEmailCode,
+    sendTransferReceivedEmail,
+    sendSingleTransactionEmail,
+    sendTransferStatusEmail,
+    sendAccountRestrictionEmail,
     sendAdminEmail,
     saveSettings,
     getSettings: async () => {

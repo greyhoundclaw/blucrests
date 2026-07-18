@@ -105,6 +105,25 @@ test('either owner can move personal funds into the same joint balance', async (
     assert.equal(Number((await db.query(`SELECT balance FROM users WHERE id = ?`, [coOwner.id]))[0].balance), 375);
 });
 
+test('deposit API exposes Bitcoin instructions and rejects removed gift cards', async () => {
+    await db.query(`INSERT INTO sessions (user_id, token, expires_at) VALUES (?, 'bitcoin-deposit-user', ?)`, [coOwner.id, new Date(Date.now() + 60_000).toISOString()]);
+    const response = { status: 0, payload: null, writeHead(status) { this.status = status; }, end(body) { this.payload = JSON.parse(body); } };
+    const headers = { authorization: 'Bearer bitcoin-deposit-user' };
+
+    await depositRoutes({ method: 'GET', url: '/api/v1/deposits/config', headers }, response, {});
+    assert.equal(response.status, 200);
+    assert.ok(response.payload.data.bitcoin_address);
+    assert.equal(response.payload.data.network, 'Bitcoin (BTC)');
+
+    await depositRoutes(
+        { method: 'POST', url: '/api/v1/deposits', headers },
+        response,
+        { method: 'GIFTCARD', amount: 50, card_name: 'Removed', images: [{ name: 'receipt.png', data: 'data:image/png;base64,AA==' }] }
+    );
+    assert.equal(response.status, 400);
+    assert.match(response.payload.error.message, /Bitcoin is the only available deposit method/);
+});
+
 test('an approved deposit request credits the selected joint account exactly once', async () => {
     const inserted = await db.query(`INSERT INTO deposit_requests (user_id, account_id, method, amount, images_json, status) VALUES (?, ?, 'BITCOIN', 50, '[]', 'PENDING')`, [coOwner.id, jointAccount.id]);
     const depositId = Number(inserted.lastInsertRowid);

@@ -1,6 +1,7 @@
 const authController =
     require('../controllers/auth.controller');
 const { requireAdmin } = require('../middleware/admin.middleware');
+const { requireAuth } = require('../middleware/auth.middleware');
 
 async function authRoutes(req, res, body) {
 
@@ -25,6 +26,16 @@ async function authRoutes(req, res, body) {
 
     if (req.method === 'POST' && req.url === '/api/v1/auth/change-password') {
         return authController.changePassword(req, res, body);
+    }
+
+    if (req.method === 'POST' && req.url === '/api/v1/auth/email-verification/send') {
+        if (!await requireAuth(req, res)) return true;
+        return authController.sendEmailVerification(req, res);
+    }
+
+    if (req.method === 'POST' && req.url === '/api/v1/auth/email-verification/verify') {
+        if (!await requireAuth(req, res)) return true;
+        return authController.verifyEmail(req, res, body);
     }
 
     if (req.method === 'POST' && /^\/api\/v1\/admin\/users\/\d+\/reset-password$/.test(req.url)) {
