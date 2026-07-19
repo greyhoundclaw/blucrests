@@ -5,7 +5,6 @@ import {
   FileText, 
   TrendingUp, 
   Send, 
-  Globe, 
   History, 
   CreditCard, 
   Shield, 
@@ -44,8 +43,7 @@ const MENU_ITEMS = [
   ]},
   { section: 'FUND TRANSFER', items: [
     { id: 'deposit', label: 'Deposit', icon: WalletCards },
-    { id: 'local-transfer', label: 'Local Transfer', icon: Send },
-    { id: 'intl-transfer', label: 'International Transfer', icon: Globe },
+    { id: 'local-transfer', label: 'Transfer', icon: Send },
     { id: 'history', label: 'Transfer History', icon: History },
   ]},
   { section: 'CREDITS & SECURE', items: [
@@ -64,8 +62,7 @@ const labelKeyMap: Record<string, string> = {
   summary: 'accountSummary',
   'joint-accounts': 'jointAccounts',
   stocks: 'stocksTrading',
-  'local-transfer': 'localTransfer',
-  'intl-transfer': 'internationalTransfer',
+  'local-transfer': 'transfer',
   history: 'transferHistory',
   atm: 'atmCard',
   kyc: 'verifyIdentity',

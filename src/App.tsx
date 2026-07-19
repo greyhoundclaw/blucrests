@@ -27,7 +27,7 @@ import SupportWidget from './components/SupportWidget';
 import JointAccountsPanel from './components/JointAccountsPanel';
 import EmailVerificationBanner from './components/EmailVerificationBanner';
 import { LanguageCode } from './lib/translations';
-import { RestrictedModal, SelectTransferTypeModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
+import { RestrictedModal, TransferSuccessModal, TransferCodeModal, TransferVerificationModal } from './components/Modals';
 import { motion, AnimatePresence } from 'motion/react';
 import { USER_DATA, TRANSACTIONS } from './constants';
 import { cn } from './lib/utils';
@@ -54,6 +54,17 @@ const formatTransactionCategory = (category?: string) => {
   return category
     ? String(category).replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase())
     : 'Transfer';
+};
+
+const formatTransactionDescription = (description?: string) => {
+  const value = String(description || '').trim();
+  const internalMatch = value.match(/^Internal Transfer (?:to|from) (.+) \(([^)]+)\)$/i);
+  if (internalMatch) return `${internalMatch[1]} · ${internalMatch[2]}`;
+
+  const externalMatch = value.match(/^Wire\/External Transfer to (.+) \(.+ \/ ([^)]+)\)$/i);
+  if (externalMatch) return `${externalMatch[1]} · ${externalMatch[2]}`;
+
+  return value || 'Bank Transfer';
 };
 
 export default function App() {
@@ -108,7 +119,6 @@ useEffect(() => {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).has('support') ? 'admin' : 'dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRestrictedModalOpen, setIsRestrictedModalOpen] = useState(false);
-  const [isSelectTypeModalOpen, setIsSelectTypeModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isTransferCodeModalOpen, setIsTransferCodeModalOpen] = useState(false);
   const [isTransferVerificationOpen, setIsTransferVerificationOpen] = useState(false);
@@ -235,7 +245,7 @@ useEffect(() => {
             const mappedTxns = data.map((t: any) => ({
               id: `TXN-${t.id}`,
               reference: t.reference,
-              name: t.description || 'Fund Transfer',
+              name: formatTransactionDescription(t.description),
               date: t.transaction_date
                 ? String(t.transaction_date).split('T')[0].split(' ')[0]
                 : t.created_at
@@ -409,8 +419,7 @@ setIsLoggedIn(true);
 
   const handleActionClick = (id: string) => {
     const routingMap: Record<string, string> = {
-      'transfer': 'show-modal',
-      'intl-transfer': 'intl-transfer',
+      'transfer': 'local-transfer',
       'local-transfer': 'local-transfer',
       'history': 'history',
       'card': 'atm',
@@ -421,18 +430,11 @@ setIsLoggedIn(true);
       'loans': 'loans',
     };
 
-    if (id === 'transfer') {
-      setIsSelectTypeModalOpen(true);
-    } else if (id === 'logout') {
+    if (id === 'logout') {
       handleLogout();
     } else if (routingMap[id]) {
       setActiveTab(routingMap[id]);
     }
-  };
-
-  const handleTransferTypeSelect = (type: string) => {
-    setIsSelectTypeModalOpen(false);
-    setActiveTab(type === 'local' ? 'local-transfer' : 'intl-transfer');
   };
 
   const renderContent = () => {
@@ -444,7 +446,6 @@ setIsLoggedIn(true);
       case 'joint-accounts':
         return <div className="max-w-5xl mx-auto py-4 md:py-8"><JointAccountsPanel currentUser={currentUser} onBalancesChanged={syncUserData} /></div>;
       case 'local-transfer':
-      case 'intl-transfer':
         if (currentUser.transferPin === null || currentUser.transferPin === undefined || currentUser.transferPin === "") {
           return (
             <CreatePinPage
@@ -618,12 +619,6 @@ return updated;
       />
       <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
       {activeTab !== 'support' && <SupportWidget />}
-
-      <SelectTransferTypeModal
-        isOpen={isSelectTypeModalOpen}
-        onClose={() => setIsSelectTypeModalOpen(false)}
-        onSelect={handleTransferTypeSelect}
-      />
 
       <TransferSuccessModal
         isOpen={isSuccessModalOpen}

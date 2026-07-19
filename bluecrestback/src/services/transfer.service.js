@@ -163,7 +163,7 @@ async function createTransfer(
                 currency: user.preferred_currency,
                 status: 'PENDING',
                 reference: debitReference(transfer.id),
-                description: `Internal Transfer to ${recipient.first_name} ${recipient.last_name} (${recipient.account_number})`
+                description: `${recipient.first_name} ${recipient.last_name} · ${recipient.account_number}`
             });
 
             if (shouldCompleteImmediately) {
@@ -219,7 +219,7 @@ async function createTransfer(
                 currency: user.preferred_currency,
                 status: 'PENDING',
                 reference: debitReference(transfer.id),
-                description: `Wire/External Transfer to ${data.recipient_name} (${data.recipient_bank} / ${data.recipient_account_number})`
+                description: `${data.recipient_name} · ${data.recipient_account_number}`
             });
 
             if (shouldCompleteImmediately) {
@@ -275,9 +275,7 @@ async function completeTransfer(transferId) {
             amount: transfer.amount,
             currency: transfer.currency || sender.preferred_currency,
             status: 'COMPLETED',
-            description: transfer.transfer_type === 'INTERNAL'
-                ? `Internal Transfer to ${transfer.recipient_name} (${transfer.recipient_account_number})`
-                : `Wire/External Transfer to ${transfer.recipient_name} (${transfer.recipient_bank} / ${transfer.recipient_account_number})`
+            description: `${transfer.recipient_name} · ${transfer.recipient_account_number}`
         });
 
         if (transfer.transfer_type === 'INTERNAL' && transfer.recipient_user_id) {
@@ -295,7 +293,7 @@ async function completeTransfer(transferId) {
                 amount: transfer.amount,
                 currency: recipient.preferred_currency,
                 status: 'COMPLETED',
-                description: `Internal Transfer from ${sender.first_name} ${sender.last_name} (${sender.account_number})`
+                description: `${sender.first_name} ${sender.last_name} · ${sender.account_number}`
             });
 
             receivedEmail = { recipient, sender, transfer };

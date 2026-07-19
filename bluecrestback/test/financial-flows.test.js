@@ -177,6 +177,7 @@ test('pending external transfer moves no money and completion debits exactly onc
         .filter(entry => entry.reference === `TXN-TRF-${transfer.id}-DEBIT`);
     assert.equal(entries.length, 1);
     assert.equal(entries[0].status, 'COMPLETED');
+    assert.equal(entries[0].description, 'Example Recipient · 9999999999');
 });
 
 test('admin restriction of a pending transfer emails its sender once', async () => {
@@ -228,6 +229,7 @@ test('rejecting a pending transfer moves no money', async () => {
 
 test('internal transfer debits sender and credits recipient exactly once', async () => {
     const sender = await userRepository.findUserById(2);
+    const recipient = await userRepository.findUserById(3);
     const token = await verificationToken(sender.id, 'internal');
     const transfer = await transferService.createTransfer(sender, {
         transfer_type: 'INTERNAL',
@@ -246,6 +248,15 @@ test('internal transfer debits sender and credits recipient exactly once', async
     assert.equal(Number((await userRepository.findUserById(3)).balance), 1100);
     assert.equal(transferEmails.length, 1);
     assert.equal(transferEmails[0].recipient.id, 3);
+
+    const senderEntry = await transactionRepository.getTransactionByReference(
+        `TXN-TRF-${transfer.id}-DEBIT`
+    );
+    const recipientEntry = await transactionRepository.getTransactionByReference(
+        `TXN-TRF-${transfer.id}-CREDIT`
+    );
+    assert.equal(senderEntry.description, `${recipient.first_name} ${recipient.last_name} · ${recipient.account_number}`);
+    assert.equal(recipientEntry.description, `${sender.first_name} ${sender.last_name} · ${sender.account_number}`);
 });
 
 test('loan disbursement credits exactly once', async () => {

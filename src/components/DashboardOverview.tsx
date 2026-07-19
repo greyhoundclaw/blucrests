@@ -10,7 +10,6 @@ import {
   Eye,
   TrendingDown,
   ChevronRight,
-  Wifi,
   MoreVertical
 } from 'lucide-react';
 import { 
@@ -311,16 +310,15 @@ export default function DashboardOverview({
 
         {/* Quick Actions & Transfer */}
         <div className="xl:col-span-2 space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { id: 'transfer', label: 'Local Send', icon: Send, color: 'bg-indigo-50 text-[#003399]' },
-              { id: 'intl', label: 'International', icon: Wifi, color: 'bg-indigo-50 text-[#003399]' },
+              { id: 'transfer', label: 'Bank Transfer', icon: Send, color: 'bg-indigo-50 text-[#003399]' },
               { id: 'history', label: 'History', icon: History, color: 'bg-emerald-50 text-emerald-600' },
               { id: 'card', label: 'Security', icon: Shield, color: 'bg-rose-50 text-rose-500' },
             ].map((action) => (
               <button 
                 key={action.id}
-                onClick={() => onActionClick(action.id === 'intl' ? 'intl-transfer' : action.id)}
+                onClick={() => onActionClick(action.id)}
                 className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col items-center justify-center gap-4 group"
               >
                 <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110", action.color)}>

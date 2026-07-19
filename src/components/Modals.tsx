@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ShieldAlert, LifeBuoy, Send, Globe, ShieldCheck } from 'lucide-react';
+import { X, ShieldAlert, LifeBuoy, Send, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -79,40 +79,6 @@ export function RestrictedModal({ isOpen, onClose, authorizationHold = false }: 
             Close
           </button>
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-export function SelectTransferTypeModal({ isOpen, onClose, onSelect }: { isOpen: boolean; onClose: () => void; onSelect: (type: string) => void }) {
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Select Transfer Type">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <button 
-          onClick={() => onSelect('local')}
-          className="group p-8 rounded-[2rem] bg-slate-50 border-2 border-transparent hover:border-indigo-600 transition-all text-center flex flex-col items-center gap-4"
-        >
-          <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all transform group-hover:scale-110">
-            <Send className="w-8 h-8" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-slate-900">Local</p>
-            <p className="text-xs font-semibold text-slate-400">Within same country</p>
-          </div>
-        </button>
-
-        <button 
-          onClick={() => onSelect('intl')}
-          className="group p-8 rounded-[2rem] bg-slate-50 border-2 border-transparent hover:border-indigo-600 transition-all text-center flex flex-col items-center gap-4"
-        >
-          <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all transform group-hover:scale-110">
-            <Globe className="w-8 h-8" />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-slate-900">International</p>
-            <p className="text-xs font-semibold text-slate-400">Send across borders</p>
-          </div>
-        </button>
       </div>
     </Modal>
   );
