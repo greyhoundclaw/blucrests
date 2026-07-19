@@ -116,6 +116,26 @@ test('an accepted invitation repairs a missing joint-owner link', async () => {
     assert.equal(owner.role, 'JOINT_OWNER');
 });
 
+test('a personal admin credit is not misclassified after opening a joint account', async () => {
+    const transaction = await ledgerService.postEntry({
+        user_id: primary.id,
+        type: 'CREDIT',
+        amount: 25000,
+        currency: 'USD',
+        description: 'Personal account adjustment',
+        transaction_date: '2026-07-19',
+        created_by: coOwner.id
+    });
+    const account = (await db.query(`SELECT * FROM accounts WHERE id = ?`, [transaction.account_id]))[0];
+    const notices = await db.query(`SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC`, [primary.id]);
+    const notice = notices.find(item => item.message.includes('Personal account adjustment'));
+
+    assert.equal(account.account_kind, 'PRIMARY');
+    assert.equal(notice.title, 'Account credited');
+    assert.doesNotMatch(notice.message, /joint|shared/i);
+    assert.equal(notice.action_link, '/history');
+});
+
 test('a shared ledger entry is visible to both owners with performer attribution', async () => {
     await ledgerService.postEntry({
         user_id: primary.id,

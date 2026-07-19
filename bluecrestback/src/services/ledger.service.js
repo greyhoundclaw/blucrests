@@ -19,6 +19,44 @@ function normalizeAmount(amount) {
     return parsed;
 }
 
+function formatMoney(amount, currency = 'USD') {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: String(currency || 'USD').toUpperCase()
+        }).format(Number(amount));
+    } catch (_error) {
+        return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
+    }
+}
+
+function formatTransactionDate(value) {
+    const date = new Date(value || Date.now());
+    if (Number.isNaN(date.getTime())) return String(value || 'today');
+    return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'
+    }).format(date);
+}
+
+async function createAccountActivityNotification({ userId, accountKind, entry, actorId }) {
+    const credited = entry.type === 'CREDIT';
+    const accountLabel = accountKind === 'JOINT' ? 'joint account' : 'account';
+    const verb = credited ? 'credited' : 'debited';
+    const amount = formatMoney(entry.amount, entry.currency);
+    const date = formatTransactionDate(entry.transaction_date || entry.created_at);
+    const description = String(entry.description || (credited ? 'Account Deposit' : 'Account Debit')).trim();
+    return notificationRepository.createNotification({
+        user_id: userId,
+        title: accountKind === 'JOINT'
+            ? `Joint account ${verb}`
+            : `Account ${verb}`,
+        message: `Your ${accountLabel} was ${verb} with ${amount} on ${date}. Description: ${description}.`,
+        type: credited ? 'SUCCESS' : 'INFO',
+        action_link: accountKind === 'JOINT' ? '/joint-accounts' : '/history',
+        created_by: actorId || null
+    });
+}
+
 async function applyBalanceMovement(entry) {
     const user = await userRepository.findUserById(entry.user_id);
 
@@ -101,9 +139,11 @@ async function postEntry(data) {
         }
 
         const ownerAccount = data.account_id ? { account_id: data.account_id } : (await db.query(`
-            SELECT account_id FROM account_owners
-            WHERE user_id = ? AND role = 'PRIMARY_OWNER' AND status = 'ACCEPTED'
-            ORDER BY id ASC LIMIT 1
+            SELECT ao.account_id FROM account_owners ao
+            JOIN accounts a ON a.id = ao.account_id
+            WHERE ao.user_id = ? AND ao.role = 'PRIMARY_OWNER' AND ao.status = 'ACCEPTED'
+              AND a.account_kind = 'PRIMARY'
+            ORDER BY ao.id ASC LIMIT 1
         `, [data.user_id]))[0];
 
         const created = await transactionRepository.createTransaction({
@@ -121,25 +161,34 @@ async function postEntry(data) {
             performed_by: data.performed_by || data.created_by || data.user_id
         });
 
-        if (status === 'COMPLETED' && ownerAccount?.account_id) {
-            const account = (await db.query(`SELECT account_kind FROM accounts WHERE id = ?`, [ownerAccount.account_id]))[0];
-            if (account?.account_kind !== 'JOINT') {
+        if (status === 'COMPLETED') {
+            const account = ownerAccount?.account_id
+                ? (await db.query(`SELECT account_kind FROM accounts WHERE id = ?`, [ownerAccount.account_id]))[0]
+                : null;
+            const accountKind = account?.account_kind === 'JOINT' ? 'JOINT' : 'PRIMARY';
+            if (ownerAccount?.account_id && accountKind !== 'JOINT') {
                 await db.query(`UPDATE accounts SET balance = (SELECT balance FROM users WHERE id = ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [data.user_id, ownerAccount.account_id]);
             }
             const performerId = data.performed_by || data.created_by || data.user_id;
-            const coOwners = await db.query(`
-                SELECT ao.user_id FROM account_owners ao
-                WHERE ao.account_id = ? AND ao.status = 'ACCEPTED' AND ao.user_id != ?
-            `, [ownerAccount.account_id, performerId]);
-            const performer = await userRepository.findUserById(performerId);
-            for (const owner of coOwners) {
-                await notificationRepository.createNotification({
-                    user_id: owner.user_id,
-                    title: 'Joint account activity',
-                    message: `${performer?.first_name || 'A joint owner'} ${performer?.last_name || ''} completed a ${data.type.toLowerCase()} of ${amount} on your shared account.`,
-                    type: 'INFO',
-                    action_link: '/joint-accounts',
-                    created_by: performerId
+            if (accountKind === 'JOINT') {
+                const owners = await db.query(`
+                    SELECT ao.user_id FROM account_owners ao
+                    WHERE ao.account_id = ? AND ao.status = 'ACCEPTED' AND ao.user_id != ?
+                `, [ownerAccount.account_id, performerId]);
+                for (const owner of owners) {
+                    await createAccountActivityNotification({
+                        userId: owner.user_id,
+                        accountKind: 'JOINT',
+                        entry: created,
+                        actorId: performerId
+                    });
+                }
+            } else if (Number(performerId) !== Number(data.user_id)) {
+                await createAccountActivityNotification({
+                    userId: data.user_id,
+                    accountKind: 'PRIMARY',
+                    entry: created,
+                    actorId: performerId
                 });
             }
         }

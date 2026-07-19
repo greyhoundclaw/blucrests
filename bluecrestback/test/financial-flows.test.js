@@ -340,6 +340,29 @@ test('admin notifications are delivered and can be marked read', async () => {
     assert.equal(Number(marked.is_read), 1);
 });
 
+test('admin-created personal transactions use account credit wording', async () => {
+    const transaction = await ledgerService.postEntry({
+        user_id: 3,
+        type: 'CREDIT',
+        amount: 25000,
+        currency: 'USD',
+        description: 'Payroll adjustment',
+        transaction_date: '2026-07-19',
+        created_by: 1
+    });
+    const account = (await db.query(`SELECT account_kind FROM accounts WHERE id = ?`, [transaction.account_id]))[0];
+    const userNotifications = await notificationService.listForUser(3);
+    const notification = userNotifications.find(item => item.created_by === 1 && item.message.includes('Payroll adjustment'));
+
+    assert.notEqual(account?.account_kind, 'JOINT');
+    assert.equal(notification.title, 'Account credited');
+    assert.match(notification.message, /Your account was credited with \$25,000\.00/);
+    assert.match(notification.message, /July 19, 2026/);
+    assert.match(notification.message, /Description: Payroll adjustment/);
+    assert.equal(notification.action_link, '/history');
+    assert.doesNotMatch(notification.message, /joint|shared|System Admin/i);
+});
+
 test('email settings expose environment fallback and validate saved configuration', async () => {
     process.env.SMTP_HOST = 'smtp.example.com';
     process.env.SMTP_PORT = '587';
