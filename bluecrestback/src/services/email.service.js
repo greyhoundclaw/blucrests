@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const dns = require('dns');
+const net = require('net');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const db = require('../database/db');
@@ -86,15 +88,30 @@ function sanitizeSettings(settings) {
 async function createTransporter() {
     const settings = await resolvedSettings();
     if (!settings.smtp_host || !settings.sender_email) throw new Error('SMTP settings are incomplete');
+
+    let connectionHost = settings.smtp_host;
+    if (!net.isIP(connectionHost)) {
+        try {
+            const ipv4Addresses = await dns.promises.resolve4(connectionHost);
+            if (ipv4Addresses.length) connectionHost = ipv4Addresses[0];
+        } catch (_error) {
+            // Let Nodemailer report the original DNS/connection error when IPv4 lookup fails.
+        }
+    }
+
     return {
         settings,
         transporter: nodemailer.createTransport({
-            host: settings.smtp_host,
+            host: connectionHost,
             port: Number(settings.smtp_port),
             secure: Boolean(settings.smtp_secure),
             connectionTimeout: 10000,
             greetingTimeout: 10000,
             socketTimeout: 20000,
+            tls: {
+                servername: settings.smtp_host,
+                minVersion: 'TLSv1.2'
+            },
             auth: settings.smtp_username
                 ? { user: settings.smtp_username, pass: settings.smtp_password }
                 : undefined
@@ -102,16 +119,32 @@ async function createTransporter() {
     };
 }
 
+function normalizeEmailError(error) {
+    const code = error?.code;
+    if (process.env.RAILWAY_PROJECT_ID && ['ENETUNREACH', 'ETIMEDOUT', 'ECONNREFUSED'].includes(code)) {
+        const normalized = new Error(
+            'The SMTP server is unreachable from Railway. SMTP requires Railway Pro; on Free, Trial, or Hobby use an HTTPS email provider.'
+        );
+        normalized.code = code;
+        return normalized;
+    }
+    return error;
+}
+
 async function sendEmail({ to, subject, html, text, attachments = [] }) {
     const { settings, transporter } = await createTransporter();
-    return transporter.sendMail({
-        from: { address: settings.sender_email, name: settings.sender_name || 'Blue Crest' },
-        to,
-        subject,
-        html,
-        text,
-        attachments
-    });
+    try {
+        return await transporter.sendMail({
+            from: { address: settings.sender_email, name: settings.sender_name || 'Blue Crest' },
+            to,
+            subject,
+            html,
+            text,
+            attachments
+        });
+    } catch (error) {
+        throw normalizeEmailError(error);
+    }
 }
 
 function escapeHtml(value) {
@@ -364,7 +397,11 @@ module.exports = {
     getLogs: emailRepository.getLogs,
     verifySettings: async () => {
         const { transporter } = await createTransporter();
-        await transporter.verify();
+        try {
+            await transporter.verify();
+        } catch (error) {
+            throw normalizeEmailError(error);
+        }
         return { verified: true };
     }
 };
