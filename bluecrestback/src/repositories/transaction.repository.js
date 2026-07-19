@@ -15,9 +15,12 @@ async function createTransaction(data) {
             created_by,
             transaction_date,
             account_id,
-            performed_by
+            performed_by,
+            origin_name,
+            origin_bank,
+            origin_account_number
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING *
         `
         : `
@@ -33,9 +36,12 @@ async function createTransaction(data) {
             created_by,
             transaction_date,
             account_id,
-            performed_by
+            performed_by,
+            origin_name,
+            origin_bank,
+            origin_account_number
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
     const result = await db.query(
@@ -52,7 +58,10 @@ async function createTransaction(data) {
             data.created_by || null,
             data.transaction_date || null,
             data.account_id || null,
-            data.performed_by || data.created_by || data.user_id
+            data.performed_by || data.created_by || data.user_id,
+            data.origin_name || null,
+            data.origin_bank || null,
+            data.origin_account_number || null
         ]
     );
 
@@ -79,10 +88,12 @@ async function getUserTransactions(
 
     return await db.query(
         `
-        SELECT t.*, performer.first_name AS performed_by_first_name,
-               performer.last_name AS performed_by_last_name
+        SELECT t.*, account.account_kind,
+               CASE WHEN account.account_kind = 'JOINT' THEN performer.first_name END AS performed_by_first_name,
+               CASE WHEN account.account_kind = 'JOINT' THEN performer.last_name END AS performed_by_last_name
         FROM transactions t
         LEFT JOIN users performer ON performer.id = COALESCE(t.performed_by, t.created_by, t.user_id)
+        LEFT JOIN accounts account ON account.id = t.account_id
         WHERE t.user_id = ? OR t.account_id IN (
             SELECT account_id FROM account_owners WHERE user_id = ? AND status = 'ACCEPTED'
         )

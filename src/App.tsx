@@ -255,7 +255,11 @@ useEffect(() => {
               status: t.status === 'COMPLETED' ? 'Completed' : (t.status === 'PENDING' ? 'Pending' : 'Declined'),
               category: formatTransactionCategory(t.category),
               accountId: t.account_id,
-              performedBy: [t.performed_by_first_name, t.performed_by_last_name].filter(Boolean).join(' ')
+              performedBy: [t.performed_by_first_name, t.performed_by_last_name].filter(Boolean).join(' '),
+              originName: t.origin_name || '',
+              originBank: t.origin_bank || '',
+              originAccountNumber: t.origin_account_number || '',
+              currency: t.currency || currentUser.preferred_currency || 'USD'
             }));
             console.log('MAPPED TRANSACTIONS:', mappedTxns);
             setTransactions(mappedTxns);
@@ -548,6 +552,8 @@ return updated;
         );
       case 'notifications':
         return <NotificationsPage onNavigate={setActiveTab} />;
+      case 'support':
+        return <div className="py-4 md:py-8"><SupportWidget embedded /></div>;
       case 'history':
         return <TransactionHistory transactions={transactions} formatCurrency={formatUserCurrency} />;
       case 'summary':
@@ -611,7 +617,7 @@ return updated;
         authorizationHold={(currentUser.transfer_flow || currentUser.transferFlow) === 'AUTHORIZATION_HOLD'}
       />
       <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
-      <SupportWidget />
+      {activeTab !== 'support' && <SupportWidget />}
 
       <SelectTransferTypeModal
         isOpen={isSelectTypeModalOpen}

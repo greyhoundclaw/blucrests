@@ -18,7 +18,8 @@ import {
   Landmark,
   Bell
   ,WalletCards,
-  Users
+  Users,
+  MessageCircle
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getTranslation, LanguageCode } from '../lib/translations';
@@ -49,6 +50,7 @@ const MENU_ITEMS = [
   ]},
   { section: 'CREDITS & SECURE', items: [
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'support', label: 'Help & Support', icon: MessageCircle },
     { id: 'kyc', label: 'Verify Identity (KYC)', icon: ShieldCheck },
     { id: 'loans', label: 'Apply For Loan', icon: Landmark },
     { id: 'atm', label: 'Apply For Debit Card', icon: CreditCard },
@@ -70,6 +72,7 @@ const labelKeyMap: Record<string, string> = {
   loans: 'applyLoan',
   pin: 'securityPin',
   notifications: 'notifications',
+  support: 'support',
   deposit: 'deposit',
   admin: 'adminBackoffice'
 };

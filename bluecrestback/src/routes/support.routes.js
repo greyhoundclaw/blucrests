@@ -70,7 +70,7 @@ async function supportRoutes(req, res, body) {
             if (!conversation) throw new Error('Conversation not found');
             await db.query(`INSERT INTO support_messages (conversation_id, sender_id, sender_role, message) VALUES (?, ?, 'ADMIN', ?)`, [id, req.user.id, message]);
             await db.query(`UPDATE support_conversations SET status = 'OPEN', last_message_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
-            await notifications.createNotification({ user_id: conversation.user_id, title: 'New support reply', message: message.slice(0, 180), type: 'INFO', action_link: '/dashboard', created_by: req.user.id });
+            await notifications.createNotification({ user_id: conversation.user_id, title: 'New support reply', message: message.slice(0, 180), type: 'INFO', action_link: '/support', created_by: req.user.id });
             return successResponse(res, null, 'Reply sent', 201);
         }
         if (adminThread && req.method === 'PATCH') {

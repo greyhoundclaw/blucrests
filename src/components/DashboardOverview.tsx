@@ -293,7 +293,8 @@ export default function DashboardOverview({
                     <div className="min-w-0">
                       <p className="font-bold text-slate-800 group-hover:text-[#003399] transition-colors truncate text-sm">{trx.name}</p>
                       <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-tight truncate">{trx.category} • {trx.date}</p>
-                      {trx.performedBy && <p className="text-[9px] text-[#003399] font-semibold mt-0.5 truncate">Performed by {trx.performedBy}</p>}
+                      {trx.originName && <p className="text-[9px] text-[#003399] font-semibold mt-0.5 truncate">From {trx.originName}{trx.originBank ? ` · ${trx.originBank}` : ''}{trx.originAccountNumber ? ` · ${trx.originAccountNumber}` : ''}</p>}
+                      {trx.performedBy && <p className="text-[9px] text-[#003399] font-semibold mt-0.5 truncate">Joint account activity by {trx.performedBy}</p>}
                     </div>
                   </div>
                   <div className="text-right ml-4 shrink-0">

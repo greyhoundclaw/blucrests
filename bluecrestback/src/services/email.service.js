@@ -406,11 +406,17 @@ async function sendSingleTransactionEmail(user, transaction) {
     const isCredit = transaction.type === 'CREDIT';
     const title = isCredit ? 'Account credited' : 'Account debited';
     const subject = `${title}: ${amount}`;
-    const text = `Hello ${user.first_name || 'Customer'}, your account was ${isCredit ? 'credited' : 'debited'} ${amount}. ${transaction.description || ''} Reference: ${transaction.reference}.`;
+    const source = [transaction.origin_name, transaction.origin_bank].filter(Boolean).join(' — ');
+    const sourceText = source
+        ? ` From: ${source}${transaction.origin_account_number ? `, account ${transaction.origin_account_number}` : ''}.`
+        : '';
+    const text = `Hello ${user.first_name || 'Customer'}, your account was ${isCredit ? 'credited' : 'debited'} ${amount}.${sourceText} ${transaction.description || ''} Reference: ${transaction.reference}.`;
     const html = emailShell(title, user.first_name, `
         <p>A single account transaction has been added to your account.</p>
         <div style="background:#f8fafc;border-radius:14px;padding:18px;margin:20px 0">
             <p style="margin:0 0 10px"><strong>Amount:</strong> ${escapeHtml(amount)}</p>
+            ${source ? `<p style="margin:0 0 10px"><strong>From:</strong> ${escapeHtml(source)}</p>` : ''}
+            ${transaction.origin_account_number ? `<p style="margin:0 0 10px"><strong>Originating account:</strong> ${escapeHtml(transaction.origin_account_number)}</p>` : ''}
             <p style="margin:0 0 10px"><strong>Description:</strong> ${escapeHtml(transaction.description || title)}</p>
             <p style="margin:0"><strong>Reference:</strong> ${escapeHtml(transaction.reference)}</p>
         </div>`);

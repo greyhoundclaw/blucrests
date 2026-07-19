@@ -45,12 +45,17 @@ async function createAccountActivityNotification({ userId, accountKind, entry, a
     const amount = formatMoney(entry.amount, entry.currency);
     const date = formatTransactionDate(entry.transaction_date || entry.created_at);
     const description = String(entry.description || (credited ? 'Account Deposit' : 'Account Debit')).trim();
+    const accountEnding = String(entry.origin_account_number || '').slice(-4);
+    const source = [entry.origin_name, entry.origin_bank].filter(Boolean).join(' — ');
+    const sourceDetails = source
+        ? ` From: ${source}${accountEnding ? `, account ending ${accountEnding}` : ''}.`
+        : '';
     return notificationRepository.createNotification({
         user_id: userId,
         title: accountKind === 'JOINT'
             ? `Joint account ${verb}`
             : `Account ${verb}`,
-        message: `Your ${accountLabel} was ${verb} with ${amount} on ${date}. Description: ${description}.`,
+        message: `Your ${accountLabel} was ${verb} with ${amount} on ${date}.${sourceDetails} Description: ${description}.`,
         type: credited ? 'SUCCESS' : 'INFO',
         action_link: accountKind === 'JOINT' ? '/joint-accounts' : '/history',
         created_by: actorId || null
@@ -159,6 +164,9 @@ async function postEntry(data) {
             transaction_date: data.transaction_date || null,
             account_id: ownerAccount?.account_id || null,
             performed_by: data.performed_by || data.created_by || data.user_id
+            ,origin_name: data.origin_name || null
+            ,origin_bank: data.origin_bank || null
+            ,origin_account_number: data.origin_account_number || null
         });
 
         if (status === 'COMPLETED') {

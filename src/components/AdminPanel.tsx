@@ -91,6 +91,9 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   const [txnAmount, setTxnAmount] = useState('');
   const [txnDesc, setTxnDesc] = useState('');
   const [txnDate, setTxnDate] = useState(todayDate());
+  const [txnOriginName, setTxnOriginName] = useState('');
+  const [txnOriginBank, setTxnOriginBank] = useState('');
+  const [txnOriginAccount, setTxnOriginAccount] = useState('');
   const [batchTransactions, setBatchTransactions] = useState<BatchTransactionRow[]>([
     createBatchTransactionRow(),
     createBatchTransactionRow()
@@ -294,7 +297,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   const handleCreateManualTxn = async (e: React.FormEvent) => {
     e.preventDefault();
     setResponseMsg('');
-    if (!targetUserId || !txnAmount) {
+    if (!targetUserId || !txnAmount || !txnOriginName.trim() || !txnOriginBank.trim() || !txnOriginAccount.trim()) {
       setResponseMsg('Please fill all fields.');
       return;
     }
@@ -312,7 +315,10 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
           amount: Number(txnAmount),
           status: 'COMPLETED',
           description: txnDesc || (txnType === 'CREDIT' ? 'Account Deposit' : 'Account Debit'),
-          transaction_date: txnDate
+          transaction_date: txnDate,
+          origin_name: txnOriginName.trim(),
+          origin_bank: txnOriginBank.trim(),
+          origin_account_number: txnOriginAccount.trim()
         })
       });
 
@@ -320,6 +326,9 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
         setResponseMsg(`Transaction recorded successfully in ledger!`);
         setTxnAmount('');
         setTxnDesc('');
+        setTxnOriginName('');
+        setTxnOriginBank('');
+        setTxnOriginAccount('');
         fetchData();
       } else {
         const err = await res.json();
@@ -1667,6 +1676,24 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                   required
                 />
               </div>
+
+              <fieldset className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                <legend className="px-2 text-[10px] font-bold uppercase tracking-widest text-[#003399]">From / originating account</legend>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Sender or organization name</label>
+                  <input type="text" value={txnOriginName} onChange={(e) => setTxnOriginName(e.target.value)} className="field-control" required />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Originating bank</label>
+                    <input type="text" value={txnOriginBank} onChange={(e) => setTxnOriginBank(e.target.value)} className="field-control" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Originating account number</label>
+                    <input type="text" value={txnOriginAccount} onChange={(e) => setTxnOriginAccount(e.target.value)} className="field-control" required />
+                  </div>
+                </div>
+              </fieldset>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Description / Note</label>

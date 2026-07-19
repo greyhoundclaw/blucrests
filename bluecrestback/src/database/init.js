@@ -439,6 +439,12 @@ CREATE TABLE IF NOT EXISTS transfers (
         
         transaction_date TEXT,
 
+        origin_name TEXT,
+
+        origin_bank TEXT,
+
+        origin_account_number TEXT,
+
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
 `);
@@ -652,6 +658,19 @@ CREATE TABLE IF NOT EXISTS cards (
             await db.query(statement);
         } catch (e) {
             // Compatibility with databases already using account attribution.
+        }
+    }
+
+    const transactionOriginColumns = [
+        `ALTER TABLE transactions ADD COLUMN origin_name TEXT`,
+        `ALTER TABLE transactions ADD COLUMN origin_bank TEXT`,
+        `ALTER TABLE transactions ADD COLUMN origin_account_number TEXT`
+    ];
+    for (const statement of transactionOriginColumns) {
+        try {
+            await db.query(statement);
+        } catch (_error) {
+            // Compatibility with databases where the origin columns already exist.
         }
     }
 

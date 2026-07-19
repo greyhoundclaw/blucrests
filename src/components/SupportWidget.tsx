@@ -20,6 +20,7 @@ type Message = { id: number; sender_role: 'USER' | 'ADMIN'; message: string; cre
 
 type SupportWidgetProps = {
   isAuthenticated?: boolean;
+  embedded?: boolean;
 };
 
 const quickMessages = [
@@ -33,8 +34,8 @@ const quickMessages = [
   { label: 'Cards', message: 'I need help with my debit card or card application.', icon: CreditCard }
 ];
 
-export default function SupportWidget({ isAuthenticated = true }: SupportWidgetProps) {
-  const [open, setOpen] = useState(false);
+export default function SupportWidget({ isAuthenticated = true, embedded = false }: SupportWidgetProps) {
+  const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -59,6 +60,7 @@ export default function SupportWidget({ isAuthenticated = true }: SupportWidgetP
   }, [open, isAuthenticated, load]);
 
   useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
+  useEffect(() => { if (embedded) setOpen(true); }, [embedded]);
 
   const sendMessage = async (message: string) => {
     const trimmedMessage = message.trim();
@@ -81,7 +83,9 @@ export default function SupportWidget({ isAuthenticated = true }: SupportWidgetP
   };
 
   return <>
-    {open && <section className="fixed z-[100] bottom-24 right-3 sm:right-5 md:right-7 w-[calc(100vw-1.5rem)] max-w-[390px] h-[min(650px,calc(100dvh-7.5rem))] bg-white border border-slate-200 rounded-[1.75rem] shadow-[0_24px_70px_rgba(15,23,42,0.25)] overflow-hidden flex flex-col" aria-label="Customer support chat" role="dialog">
+    {open && <section className={embedded
+      ? "mx-auto flex h-[min(720px,calc(100dvh-9rem))] w-full max-w-4xl flex-col overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
+      : "fixed z-[100] bottom-24 right-3 sm:right-5 md:right-7 w-[calc(100vw-1.5rem)] max-w-[390px] h-[min(650px,calc(100dvh-7.5rem))] bg-white border border-slate-200 rounded-[1.75rem] shadow-[0_24px_70px_rgba(15,23,42,0.25)] overflow-hidden flex flex-col"} aria-label="Customer support chat" role={embedded ? undefined : 'dialog'}>
       <header className="bg-gradient-to-br from-[#003399] to-[#0755c9] text-white p-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">
@@ -90,7 +94,7 @@ export default function SupportWidget({ isAuthenticated = true }: SupportWidgetP
           </div>
           <div><h2 className="font-extrabold leading-tight">Blue Crest Support</h2><p className="text-[11px] text-blue-100 mt-0.5">We’re here to help with your banking</p></div>
         </div>
-        <button type="button" onClick={() => setOpen(false)} className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors" aria-label="Close support"><X className="w-5 h-5"/></button>
+        {!embedded && <button type="button" onClick={() => setOpen(false)} className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors" aria-label="Close support"><X className="w-5 h-5"/></button>}
       </header>
 
       <div className="px-4 py-3 border-b border-slate-100 bg-white shrink-0">
@@ -122,14 +126,14 @@ export default function SupportWidget({ isAuthenticated = true }: SupportWidgetP
       </form>
     </section>}
 
-    {!open && showGreeting && <div className="fixed z-[98] bottom-[5.75rem] right-3 sm:right-5 md:right-7 flex items-start gap-2 max-w-[calc(100vw-1.5rem)]">
+    {!embedded && !open && showGreeting && <div className="fixed z-[98] bottom-[5.75rem] right-3 sm:right-5 md:right-7 flex items-start gap-2 max-w-[calc(100vw-1.5rem)]">
       <button type="button" onClick={() => setOpen(true)} className="bg-white border border-slate-200 rounded-2xl rounded-br-sm px-4 py-3 shadow-xl text-left hover:border-blue-200 transition-colors"><span className="block text-sm font-extrabold text-slate-800">Need help?</span><span className="block text-[11px] text-slate-500 mt-0.5">Chat with Blue Crest Support</span></button>
       <button type="button" onClick={() => setShowGreeting(false)} className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center shadow-md" aria-label="Dismiss support greeting"><X className="w-3.5 h-3.5"/></button>
     </div>}
 
-    <button type="button" onClick={() => { setOpen(value => !value); setShowGreeting(false); }} className="fixed z-[99] bottom-5 right-3 sm:right-5 md:right-7 w-16 h-16 rounded-full bg-gradient-to-br from-[#0755c9] to-[#003399] text-white shadow-[0_14px_35px_rgba(0,51,153,0.38)] flex items-center justify-center hover:scale-105 active:scale-95 transition-transform ring-4 ring-white" aria-label={open ? 'Close customer support' : 'Open customer support'}>
+    {!embedded && <button type="button" onClick={() => { setOpen(value => !value); setShowGreeting(false); }} className="fixed z-[99] bottom-5 right-3 sm:right-5 md:right-7 w-16 h-16 rounded-full bg-gradient-to-br from-[#0755c9] to-[#003399] text-white shadow-[0_14px_35px_rgba(0,51,153,0.38)] flex items-center justify-center hover:scale-105 active:scale-95 transition-transform ring-4 ring-white" aria-label={open ? 'Close customer support' : 'Open customer support'}>
       {open ? <X className="w-7 h-7"/> : <MessageCircle className="w-7 h-7 fill-white/20"/>}
       {!open && <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-emerald-400 border-[3px] border-white" />}
-    </button>
+    </button>}
   </>;
 }

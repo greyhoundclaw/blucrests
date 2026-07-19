@@ -24,6 +24,7 @@ const withdrawalService = require('../src/services/withdrawal.service');
 const reconciliationService = require('../src/services/reconciliation.service');
 const notificationService = require('../src/services/notification.service');
 const emailService = require('../src/services/email.service');
+const supportRoutes = require('../src/routes/support.routes');
 const transferEmails = [];
 const transferStatusEmails = [];
 const accountRestrictionEmails = [];
@@ -340,6 +341,34 @@ test('admin notifications are delivered and can be marked read', async () => {
     assert.equal(Number(marked.is_read), 1);
 });
 
+test('customer support messages remain in one thread for customer and admin replies', async () => {
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+    await db.query(`INSERT INTO sessions (user_id, token, expires_at) VALUES (3, 'support-customer', ?)`, [expiresAt]);
+    await db.query(`INSERT INTO sessions (user_id, token, expires_at) VALUES (1, 'support-admin', ?)`, [expiresAt]);
+    const response = () => ({ status: 0, payload: null, writeHead(status) { this.status = status; }, end(body) { this.payload = JSON.parse(body); } });
+
+    let res = response();
+    await supportRoutes({ method: 'POST', url: '/api/v1/support/messages', headers: { authorization: 'Bearer support-customer' } }, res, { message: 'I need transfer help.' });
+    assert.equal(res.status, 201);
+
+    res = response();
+    await supportRoutes({ method: 'GET', url: '/api/v1/admin/support/conversations', headers: { authorization: 'Bearer support-admin' } }, res, {});
+    assert.equal(res.status, 200);
+    const conversation = res.payload.data.find(item => Number(item.user_id) === 3);
+    assert.ok(conversation);
+
+    res = response();
+    await supportRoutes({ method: 'POST', url: `/api/v1/admin/support/conversations/${conversation.id}`, headers: { authorization: 'Bearer support-admin' } }, res, { message: 'Support has received your message.' });
+    assert.equal(res.status, 201);
+
+    res = response();
+    await supportRoutes({ method: 'GET', url: '/api/v1/support/conversation', headers: { authorization: 'Bearer support-customer' } }, res, {});
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.payload.data.messages.map(item => item.sender_role), ['USER', 'ADMIN']);
+    const replyNotice = (await notificationService.listForUser(3)).find(item => item.title === 'New support reply');
+    assert.equal(replyNotice.action_link, '/support');
+});
+
 test('admin-created personal transactions use account credit wording', async () => {
     const transaction = await ledgerService.postEntry({
         user_id: 3,
@@ -348,7 +377,10 @@ test('admin-created personal transactions use account credit wording', async () 
         currency: 'USD',
         description: 'Payroll adjustment',
         transaction_date: '2026-07-19',
-        created_by: 1
+        created_by: 1,
+        origin_name: 'Exon Oil',
+        origin_bank: 'Atlantic Commercial Bank',
+        origin_account_number: '9876543210'
     });
     const account = (await db.query(`SELECT account_kind FROM accounts WHERE id = ?`, [transaction.account_id]))[0];
     const userNotifications = await notificationService.listForUser(3);
@@ -359,8 +391,12 @@ test('admin-created personal transactions use account credit wording', async () 
     assert.match(notification.message, /Your account was credited with \$25,000\.00/);
     assert.match(notification.message, /July 19, 2026/);
     assert.match(notification.message, /Description: Payroll adjustment/);
+    assert.match(notification.message, /From: Exon Oil — Atlantic Commercial Bank, account ending 3210/);
     assert.equal(notification.action_link, '/history');
     assert.doesNotMatch(notification.message, /joint|shared|System Admin/i);
+    assert.equal(transaction.origin_name, 'Exon Oil');
+    assert.equal(transaction.origin_bank, 'Atlantic Commercial Bank');
+    assert.equal(transaction.origin_account_number, '9876543210');
 });
 
 test('email settings expose environment fallback and validate saved configuration', async () => {
@@ -428,6 +464,18 @@ test('Zoho API is preferred over SMTP and sends through HTTPS', async () => {
         assert.equal(requests.length, 2);
         assert.match(requests[1].url, /\/api\/accounts\/12345\/messages$/);
         assert.equal(JSON.parse(requests[1].options.body).toAddress, 'recipient@example.test');
+
+        await emailService.sendSingleTransactionEmail(
+            { email: 'recipient@example.test', first_name: 'Recipient', preferred_currency: 'USD' },
+            {
+                type: 'CREDIT', amount: 25000, currency: 'USD', description: 'Payroll adjustment', reference: 'TXN-EMAIL-1',
+                origin_name: 'Exon Oil', origin_bank: 'Atlantic Commercial Bank', origin_account_number: '9876543210'
+            }
+        );
+        const emailPayload = JSON.parse(requests[2].options.body);
+        assert.match(emailPayload.content, /Exon Oil/);
+        assert.match(emailPayload.content, /Atlantic Commercial Bank/);
+        assert.match(emailPayload.content, /9876543210/);
     } finally {
         global.fetch = originalFetch;
         for (const key of keys) {

@@ -41,6 +41,12 @@ async function createTransaction(data) {
             ? 'Account Deposit'
             : 'Account Debit';
 
+    const origin = {
+        origin_name: String(data.origin_name || '').trim().slice(0, 160),
+        origin_bank: String(data.origin_bank || '').trim().slice(0, 160),
+        origin_account_number: String(data.origin_account_number || '').trim().slice(0, 80)
+    };
+
     return await ledgerService
         .postEntry({
 
@@ -77,7 +83,9 @@ async function createTransaction(data) {
                 data.created_by,
 
             transaction_date:
-                data.transaction_date || null
+                data.transaction_date || null,
+
+            ...origin
         });
 }
 
