@@ -39,7 +39,7 @@ export default function SupportWidget({ isAuthenticated = true, embedded = false
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [showGreeting, setShowGreeting] = useState(true);
-  const bottom = useRef<HTMLDivElement>(null);
+  const messageList = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -57,7 +57,11 @@ export default function SupportWidget({ isAuthenticated = true, embedded = false
     return () => window.clearInterval(timer);
   }, [open, isAuthenticated, load]);
 
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
+  const latestMessageId = messages.at(-1)?.id;
+  useEffect(() => {
+    const list = messageList.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  }, [latestMessageId]);
   useEffect(() => { if (embedded) setOpen(true); }, [embedded]);
 
   const sendMessage = async (message: string) => {
@@ -102,7 +106,7 @@ export default function SupportWidget({ isAuthenticated = true, embedded = false
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 custom-scrollbar">
+      <div ref={messageList} className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 custom-scrollbar">
         {messages.length === 0 && <div className="pt-2">
           <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-md p-4 shadow-sm">
             <p className="text-sm font-bold text-slate-800">Hi! How can we help you today?</p>
@@ -113,7 +117,6 @@ export default function SupportWidget({ isAuthenticated = true, embedded = false
           </div>
         </div>}
         {messages.map(item => <div key={item.id} className={`flex ${item.sender_role === 'USER' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] p-3 rounded-2xl ${item.sender_role === 'USER' ? 'bg-[#003399] text-white rounded-br-md' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md'}`}><p className="text-sm whitespace-pre-wrap break-words">{item.message}</p><p className={`text-[8px] mt-1.5 ${item.sender_role === 'USER' ? 'text-blue-200' : 'text-slate-400'}`}>{new Date(item.created_at).toLocaleString()}</p></div></div>)}
-        <div ref={bottom}/>
       </div>
 
       {!isAuthenticated && <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-800"><span className="font-bold">Sign in to start a conversation.</span> Your messages will then be saved to your account.</div>}
