@@ -38,6 +38,7 @@ export default function AdminCommunications({ users }: { users: any[] }) {
     finally { setBusy(false); }
   };
 
+  const usesZoho = settings.delivery_provider === 'ZOHO_API';
   const saveSettings = () => run(() => apiRequest('/api/v1/admin/email/settings', {
     method: 'PUT', body: JSON.stringify(settings)
   }), 'SMTP settings saved.');
@@ -75,13 +76,15 @@ export default function AdminCommunications({ users }: { users: any[] }) {
 
     {section === 'email' && <div className="grid min-w-0 gap-4 xl:grid-cols-2 xl:gap-6">
       <div className="min-w-0 space-y-4 rounded-2xl border border-slate-100 bg-white p-4 sm:rounded-[2rem] sm:p-6">
-        <h3 className="font-extrabold flex items-center gap-2"><Settings className="w-5 h-5 text-[#003399]" /> SMTP configuration</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <h3 className="font-extrabold flex items-center gap-2"><Settings className="w-5 h-5 text-[#003399]" /> {usesZoho ? 'Zoho Mail API' : 'SMTP configuration'}</h3>
+        {usesZoho && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">Zoho Mail is connected through Railway using secure HTTPS.</div>}
+        {!usesZoho && <><div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[['smtp_host','SMTP host'],['smtp_port','Port'],['smtp_username','Username'],['smtp_password','Password'],['sender_email','Sender email'],['sender_name','Sender name']].map(([key,label]) =>
             <div key={key}><label className="form-label">{label}</label><input type={key === 'smtp_password' ? 'password' : key === 'smtp_port' ? 'number' : 'text'} value={settings[key] || ''} onChange={e => setSettings((value: any) => ({ ...value, [key]: e.target.value }))} placeholder={key === 'smtp_password' && settings.has_password ? 'Saved — leave blank to keep' : label} className="field-control" /></div>)}
         </div>
         <label className="flex items-start gap-2 text-xs font-bold text-slate-600"><input className="mt-0.5 shrink-0" type="checkbox" checked={!!settings.smtp_secure} onChange={e => setSettings((value: any) => ({ ...value, smtp_secure: e.target.checked }))} /><span>Use secure TLS connection</span></label>
-        <div className="flex flex-col gap-2 sm:flex-row"><button disabled={busy} onClick={saveSettings} className="w-full rounded-xl bg-[#003399] py-3 text-xs font-bold text-white sm:flex-1">Save settings</button><button disabled={busy} onClick={() => run(() => apiRequest('/api/v1/admin/email/test', { method: 'POST' }), 'SMTP connection verified.')} className="w-full rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold sm:w-auto">Test connection</button></div>
+        </>}
+        <div className="flex flex-col gap-2 sm:flex-row">{!usesZoho && <button disabled={busy} onClick={saveSettings} className="w-full rounded-xl bg-[#003399] py-3 text-xs font-bold text-white sm:flex-1">Save settings</button>}<button disabled={busy} onClick={() => run(() => apiRequest('/api/v1/admin/email/test', { method: 'POST' }), 'Email provider connection verified.')} className="w-full rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold sm:w-auto">Test connection</button></div>
       </div>
       <div className="min-w-0 space-y-4 rounded-2xl border border-slate-100 bg-white p-4 sm:rounded-[2rem] sm:p-6">
         <h3 className="font-extrabold flex items-center gap-2"><Send className="w-5 h-5 text-[#003399]" /> Compose email</h3>

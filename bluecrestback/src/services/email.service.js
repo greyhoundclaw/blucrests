@@ -7,6 +7,126 @@ const db = require('../database/db');
 const emailRepository = require('../repositories/email.repository');
 const userRepository = require('../repositories/user.repository');
 
+let zohoAccessToken = null;
+let zohoAccessTokenExpiresAt = 0;
+
+function zohoConfig() {
+    const config = {
+        clientId: process.env.ZOHO_CLIENT_ID || '',
+        clientSecret: process.env.ZOHO_CLIENT_SECRET || '',
+        refreshToken: process.env.ZOHO_REFRESH_TOKEN || '',
+        accountId: process.env.ZOHO_ACCOUNT_ID || '',
+        accountsUrl: (process.env.ZOHO_ACCOUNTS_URL || 'https://accounts.zoho.com').replace(/\/$/, ''),
+        mailApiUrl: (process.env.ZOHO_MAIL_API_URL || 'https://mail.zoho.com').replace(/\/$/, ''),
+        senderEmail: process.env.MAIL_FROM || ''
+    };
+    config.enabled = Boolean(
+        config.clientId && config.clientSecret && config.refreshToken &&
+        config.accountId && config.senderEmail
+    );
+    return config;
+}
+
+async function readJsonResponse(response, operation) {
+    const payload = await response.json().catch(() => ({}));
+    const apiCode = Number(payload?.status?.code || 0);
+    if (!response.ok || (apiCode && apiCode >= 400)) {
+        const description = payload?.status?.description || payload?.error || payload?.message;
+        throw new Error(`Zoho Mail ${operation} failed${description ? `: ${description}` : ` (HTTP ${response.status})`}`);
+    }
+    return payload;
+}
+
+async function getZohoAccessToken() {
+    const config = zohoConfig();
+    if (!config.enabled) throw new Error('Zoho Mail API settings are incomplete');
+    if (zohoAccessToken && Date.now() < zohoAccessTokenExpiresAt) return zohoAccessToken;
+
+    const body = new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: config.refreshToken,
+        grant_type: 'refresh_token'
+    });
+    const response = await fetch(`${config.accountsUrl}/oauth/v2/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(15000)
+    });
+    const payload = await readJsonResponse(response, 'authentication');
+    if (!payload.access_token) throw new Error('Zoho Mail authentication failed: no access token was returned');
+
+    zohoAccessToken = payload.access_token;
+    zohoAccessTokenExpiresAt = Date.now() + Math.max(60, Number(payload.expires_in || 3600) - 60) * 1000;
+    return zohoAccessToken;
+}
+
+async function uploadZohoAttachments(config, accessToken, attachments) {
+    const uploaded = [];
+    for (const attachment of attachments) {
+        const filename = String(attachment.filename || 'attachment');
+        const url = new URL(`${config.mailApiUrl}/api/accounts/${encodeURIComponent(config.accountId)}/messages/attachments`);
+        url.searchParams.set('fileName', filename);
+        url.searchParams.set('isInline', 'false');
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Zoho-oauthtoken ${accessToken}`,
+                'Content-Type': attachment.contentType || 'application/octet-stream'
+            },
+            body: attachment.content,
+            signal: AbortSignal.timeout(20000)
+        });
+        const payload = await readJsonResponse(response, 'attachment upload');
+        const item = Array.isArray(payload.data) ? payload.data[0] : payload.data;
+        if (!item?.storeName || !item?.attachmentPath) {
+            throw new Error('Zoho Mail attachment upload failed: incomplete response');
+        }
+        uploaded.push({
+            storeName: item.storeName,
+            attachmentPath: item.attachmentPath,
+            attachmentName: item.attachmentName || filename
+        });
+    }
+    return uploaded;
+}
+
+async function sendZohoEmail({ to, subject, html, text, attachments = [] }) {
+    const config = zohoConfig();
+    const accessToken = await getZohoAccessToken();
+    const uploadedAttachments = attachments.length
+        ? await uploadZohoAttachments(config, accessToken, attachments)
+        : [];
+    const response = await fetch(
+        `${config.mailApiUrl}/api/accounts/${encodeURIComponent(config.accountId)}/messages`,
+        {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Zoho-oauthtoken ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fromAddress: config.senderEmail,
+                toAddress: Array.isArray(to) ? to.join(',') : String(to),
+                subject,
+                content: html || text || '',
+                mailFormat: html ? 'html' : 'plaintext',
+                encoding: 'UTF-8',
+                ...(uploadedAttachments.length ? { attachments: uploadedAttachments } : {})
+            }),
+            signal: AbortSignal.timeout(20000)
+        }
+    );
+    const payload = await readJsonResponse(response, 'delivery');
+    return {
+        messageId: payload?.data?.messageId || payload?.data?.messageID || null,
+        provider: 'zoho_api'
+    };
+}
+
 function encryptionKey() {
     const secret = process.env.SMTP_ENCRYPTION_KEY || process.env.APP_SECRET || 'bluecrest-local-development-key';
     return crypto.createHash('sha256').update(secret).digest();
@@ -132,6 +252,9 @@ function normalizeEmailError(error) {
 }
 
 async function sendEmail({ to, subject, html, text, attachments = [] }) {
+    if (zohoConfig().enabled) {
+        return sendZohoEmail({ to, subject, html, text, attachments });
+    }
     const { settings, transporter } = await createTransporter();
     try {
         return await transporter.sendMail({
@@ -385,6 +508,7 @@ module.exports = {
         const effective = await resolvedSettings();
         return {
             ...sanitizeSettings(stored),
+            delivery_provider: zohoConfig().enabled ? 'ZOHO_API' : 'SMTP',
             smtp_host: effective.smtp_host,
             smtp_port: effective.smtp_port,
             smtp_username: effective.smtp_username,
@@ -396,12 +520,16 @@ module.exports = {
     },
     getLogs: emailRepository.getLogs,
     verifySettings: async () => {
+        if (zohoConfig().enabled) {
+            await getZohoAccessToken();
+            return { verified: true, provider: 'ZOHO_API' };
+        }
         const { transporter } = await createTransporter();
         try {
             await transporter.verify();
         } catch (error) {
             throw normalizeEmailError(error);
         }
-        return { verified: true };
+        return { verified: true, provider: 'SMTP' };
     }
 };

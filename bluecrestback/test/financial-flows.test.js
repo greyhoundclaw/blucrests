@@ -362,6 +362,58 @@ test('email settings expose environment fallback and validate saved configuratio
     );
 });
 
+test('Zoho API is preferred over SMTP and sends through HTTPS', async () => {
+    const keys = [
+        'ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET', 'ZOHO_REFRESH_TOKEN', 'ZOHO_ACCOUNT_ID',
+        'ZOHO_ACCOUNTS_URL', 'ZOHO_MAIL_API_URL', 'MAIL_FROM'
+    ];
+    const originalEnv = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+    const originalFetch = global.fetch;
+    const requests = [];
+
+    Object.assign(process.env, {
+        ZOHO_CLIENT_ID: 'test-client',
+        ZOHO_CLIENT_SECRET: 'test-secret',
+        ZOHO_REFRESH_TOKEN: 'test-refresh',
+        ZOHO_ACCOUNT_ID: '12345',
+        ZOHO_ACCOUNTS_URL: 'https://accounts.example.test',
+        ZOHO_MAIL_API_URL: 'https://mail.example.test',
+        MAIL_FROM: 'sender@example.test'
+    });
+    global.fetch = async (url, options) => {
+        requests.push({ url: String(url), options });
+        if (String(url).endsWith('/oauth/v2/token')) {
+            return new Response(JSON.stringify({ access_token: 'test-access', expires_in: 3600 }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        return new Response(JSON.stringify({
+            status: { code: 200, description: 'success' },
+            data: { messageId: 'message-1' }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    try {
+        const result = await emailService.sendEmail({
+            to: 'recipient@example.test',
+            subject: 'Zoho test',
+            html: '<p>Hello</p>'
+        });
+        assert.equal(result.provider, 'zoho_api');
+        assert.equal(result.messageId, 'message-1');
+        assert.equal(requests.length, 2);
+        assert.match(requests[1].url, /\/api\/accounts\/12345\/messages$/);
+        assert.equal(JSON.parse(requests[1].options.body).toAddress, 'recipient@example.test');
+    } finally {
+        global.fetch = originalFetch;
+        for (const key of keys) {
+            if (originalEnv[key] === undefined) delete process.env[key];
+            else process.env[key] = originalEnv[key];
+        }
+    }
+});
+
 test('admin account restriction emails the customer only on transition', async () => {
     const before = accountRestrictionEmails.length;
     await userService.updateUser(3, { transfer_flow: 'RESTRICTED' });

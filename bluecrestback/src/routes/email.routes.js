@@ -13,7 +13,7 @@ async function emailRoutes(req, res, body) {
             return successResponse(res, await emailService.saveSettings(req.user, body), 'Email settings saved');
         }
         if (req.method === 'POST' && req.url === '/api/v1/admin/email/test') {
-            return successResponse(res, await emailService.verifySettings(), 'SMTP connection verified');
+            return successResponse(res, await emailService.verifySettings(), 'Email provider connection verified');
         }
         if (req.method === 'POST' && req.url === '/api/v1/admin/email/send') {
             return successResponse(res, await emailService.sendAdminEmail(req.user, body), 'Email delivery completed', 201);
