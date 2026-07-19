@@ -30,10 +30,12 @@ async function generateUniqueAccountNumber() {
 
 async function registerUser(userData) {
 
+    const normalizedEmail = String(userData.email || '').trim().toLowerCase();
+
     const existingUser =
         await userRepository
             .findUserByEmail(
-                userData.email
+                normalizedEmail
             );
 
     if (existingUser) {
@@ -67,7 +69,7 @@ async function registerUser(userData) {
                     userData.username,
 
                 email:
-                    userData.email,
+                    normalizedEmail,
 
                 phone:
                     userData.phone,

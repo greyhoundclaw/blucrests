@@ -2,6 +2,8 @@ const db = require('../database/db');
 
 async function createUser(userData) {
 
+    const normalizedEmail = String(userData.email || '').trim().toLowerCase();
+
     await db.query(
         `
         INSERT INTO users (
@@ -56,7 +58,7 @@ async function createUser(userData) {
             userData.last_name,
             userData.username,
 
-            userData.email,
+            normalizedEmail,
             userData.phone,
 
             userData.password,
@@ -98,19 +100,39 @@ async function createUser(userData) {
     );
 
     return findUserByEmail(
-        userData.email
+        normalizedEmail
     );
 }
 
 async function findUserByEmail(email) {
 
-    const users = await db.query(
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    if (!normalizedEmail) {
+        return undefined;
+    }
+
+    let users = await db.query(
         `
         SELECT * FROM users
         WHERE email = ?
         `,
-        [email]
+        [normalizedEmail]
     );
+
+    if (!users[0]) {
+        // Compatibility for accounts created before email normalization was
+        // enforced. New records still use the indexed exact-match path above.
+        users = await db.query(
+            `
+            SELECT * FROM users
+            WHERE LOWER(TRIM(email)) = ?
+            ORDER BY id ASC
+            LIMIT 1
+            `,
+            [normalizedEmail]
+        );
+    }
 
     return users[0];
 }

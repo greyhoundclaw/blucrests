@@ -13,6 +13,7 @@ const initializeDatabase = require('../src/database/init');
 const db = require('../src/database/db');
 const sqlite = require('../src/database/sqlite');
 const authService = require('../src/services/auth.service');
+const userService = require('../src/services/user.service');
 const emailService = require('../src/services/email.service');
 
 test.before(async () => {
@@ -21,6 +22,10 @@ test.before(async () => {
         INSERT INTO users (account_number, first_name, last_name, username, email, phone, password, status, role)
         VALUES ('3000000003', 'Existing', 'Customer', 'existing-customer', 'existing@example.com', '+15550000003', ?, 'ACTIVE', 'USER')
     `, [await bcrypt.hash('Password123!', 4)]);
+    await db.query(`
+        INSERT INTO users (account_number, first_name, last_name, username, email, phone, password, status, role)
+        VALUES ('3000000004', 'Legacy', 'Customer', 'legacy-customer', ' Legacy.Customer@Example.COM ', '+15550000004', ?, 'ACTIVE', 'USER')
+    `, [await bcrypt.hash('LegacyPassword123!', 4)]);
 });
 
 test.after(() => {
@@ -34,6 +39,30 @@ test('password login creates only a short-lived code challenge', async () => {
     assert.ok(result.challenge_token);
     assert.equal(result.token, undefined);
     assert.equal((await db.query(`SELECT COUNT(*) AS count FROM sessions`))[0].count, 0);
+});
+
+test('login finds legacy emails regardless of capitalization or surrounding spaces', async () => {
+    const result = await authService.login('legacy.customer@example.com', 'LegacyPassword123!');
+    assert.ok(result.challenge_token);
+});
+
+test('registration normalizes email and blocks differently formatted duplicates', async () => {
+    const registered = await userService.registerUser({
+        first_name: 'Normalized', last_name: 'Customer', username: 'normalized-customer',
+        email: '  Normalized.Customer@Example.COM  ', phone: '+15550000005', password: 'Password123!',
+        preferred_currency: 'USD', account_type: 'CHECKING'
+    });
+
+    assert.equal(registered.email, 'normalized.customer@example.com');
+    assert.ok((await authService.login(' NORMALIZED.CUSTOMER@example.com ', 'Password123!')).challenge_token);
+    await assert.rejects(
+        userService.registerUser({
+            first_name: 'Duplicate', last_name: 'Customer', username: 'duplicate-normalized-customer',
+            email: 'Normalized.Customer@Example.com', phone: '+15550000006', password: 'Password123!',
+            preferred_currency: 'USD', account_type: 'CHECKING'
+        }),
+        /Email already exists/
+    );
 });
 
 test('post-registration enrollment saves the code without creating a dashboard session', async () => {
