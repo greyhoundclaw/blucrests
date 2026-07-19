@@ -44,6 +44,17 @@ async function supportRoutes(req, res, body) {
             const conversation = await conversationFor(req.user.id, true);
             await db.query(`INSERT INTO support_messages (conversation_id, sender_id, sender_role, message) VALUES (?, ?, 'USER', ?)`, [conversation.id, req.user.id, message]);
             await db.query(`UPDATE support_conversations SET status = 'OPEN', last_message_at = CURRENT_TIMESTAMP WHERE id = ?`, [conversation.id]);
+            const admins = await db.query(`SELECT id FROM users WHERE UPPER(role) = 'ADMIN'`);
+            for (const admin of admins) {
+                await notifications.createNotification({
+                    user_id: admin.id,
+                    title: `Support message from ${req.user.first_name} ${req.user.last_name}`,
+                    message: message.slice(0, 180),
+                    type: 'INFO',
+                    action_link: `/admin?support=${conversation.id}`,
+                    created_by: req.user.id
+                });
+            }
             await push.sendToRole('ADMIN', { title: `Support: ${req.user.first_name} ${req.user.last_name}`, body: message.slice(0, 120), url: `/?support=${conversation.id}` });
             return successResponse(res, null, 'Message sent', 201);
         }

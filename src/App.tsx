@@ -303,6 +303,23 @@ useEffect(() => {
     return () => window.clearInterval(timer);
   }, [isLoggedIn, activeTab]);
 
+  const handleViewNotifications = useCallback(async () => {
+    setUnreadNotificationCount(0);
+
+    const token = localStorage.getItem('auth_token');
+    try {
+      const response = await fetch('/api/v1/notifications/read-all', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Could not acknowledge notifications');
+    } catch (error) {
+      console.warn('Could not persist notification acknowledgement:', error);
+    } finally {
+      setActiveTab('notifications');
+    }
+  }, []);
+
   const handleVerifyTransferCode = useCallback(async (pin: string) => {
     if (!pendingTransfer || !currentUser) return;
 
@@ -552,7 +569,7 @@ return updated;
           />
         );
       case 'notifications':
-        return <NotificationsPage onNavigate={setActiveTab} />;
+        return <NotificationsPage onNavigate={setActiveTab} onClose={() => setActiveTab('dashboard')} />;
       case 'support':
         return <div className="py-4 md:py-8"><SupportWidget embedded /></div>;
       case 'history':
@@ -617,7 +634,7 @@ return updated;
         onClose={() => setIsRestrictedModalOpen(false)}
         authorizationHold={(currentUser.transfer_flow || currentUser.transferFlow) === 'AUTHORIZATION_HOLD'}
       />
-      <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={() => { setUnreadNotificationCount(0); setActiveTab('notifications'); }} />
+      <NotificationAlert count={activeTab === 'notifications' ? 0 : unreadNotificationCount} onView={handleViewNotifications} />
       {activeTab !== 'support' && <SupportWidget />}
 
       <TransferSuccessModal

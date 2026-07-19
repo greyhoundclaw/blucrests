@@ -5,7 +5,6 @@ import {
   CircleUserRound,
   CreditCard,
   FileCheck2,
-  Globe2,
   Headphones,
   KeyRound,
   Landmark,
@@ -26,8 +25,7 @@ type SupportWidgetProps = {
 const quickMessages = [
   { label: 'Account help', message: 'I need help with my account.', icon: CircleUserRound },
   { label: 'Make a deposit', message: 'I need help making or confirming a deposit.', icon: BanknoteArrowDown },
-  { label: 'Transfer help', message: 'I need help with a local account transfer.', icon: Landmark },
-  { label: 'International transfer', message: 'I need help with an international transfer.', icon: Globe2 },
+  { label: 'Bank transfer', message: 'I need help with a bank transfer.', icon: Landmark },
   { label: 'Transfer code', message: 'I need help getting or using my transfer verification code.', icon: KeyRound },
   { label: 'Loans', message: 'I have a question about a loan application or disbursement.', icon: BadgeDollarSign },
   { label: 'KYC verification', message: 'I need help completing my KYC identity verification.', icon: FileCheck2 },
@@ -127,7 +125,7 @@ export default function SupportWidget({ isAuthenticated = true, embedded = false
     </section>}
 
     {!embedded && !open && showGreeting && <div className="fixed z-[98] bottom-[5.75rem] right-3 sm:right-5 md:right-7 flex items-start gap-2 max-w-[calc(100vw-1.5rem)]">
-      <button type="button" onClick={() => setOpen(true)} className="bg-white border border-slate-200 rounded-2xl rounded-br-sm px-4 py-3 shadow-xl text-left hover:border-blue-200 transition-colors"><span className="block text-sm font-extrabold text-slate-800">Need help?</span><span className="block text-[11px] text-slate-500 mt-0.5">Chat with Blue Crest Support</span></button>
+      <button type="button" onClick={() => { setOpen(true); setShowGreeting(false); }} className="bg-white border border-slate-200 rounded-2xl rounded-br-sm px-4 py-3 shadow-xl text-left hover:border-blue-200 transition-colors"><span className="block text-sm font-extrabold text-slate-800">Need help?</span><span className="block text-[11px] text-slate-500 mt-0.5">Chat with Blue Crest Support</span></button>
       <button type="button" onClick={() => setShowGreeting(false)} className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center shadow-md" aria-label="Dismiss support greeting"><X className="w-3.5 h-3.5"/></button>
     </div>}
 

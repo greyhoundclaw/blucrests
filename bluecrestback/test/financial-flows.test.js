@@ -361,6 +361,9 @@ test('customer support messages remain in one thread for customer and admin repl
     let res = response();
     await supportRoutes({ method: 'POST', url: '/api/v1/support/messages', headers: { authorization: 'Bearer support-customer' } }, res, { message: 'I need transfer help.' });
     assert.equal(res.status, 201);
+    const adminNotice = (await notificationService.listForUser(1)).find(item => item.title.includes('Support message from'));
+    assert.ok(adminNotice);
+    assert.match(adminNotice.action_link, /^\/admin\?support=\d+$/);
 
     res = response();
     await supportRoutes({ method: 'GET', url: '/api/v1/admin/support/conversations', headers: { authorization: 'Bearer support-admin' } }, res, {});

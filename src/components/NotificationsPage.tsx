@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, CheckCheck, ExternalLink, Shield, AlertTriangle } from 'lucide-react';
+import { Bell, CheckCheck, ExternalLink, Shield, AlertTriangle, X } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 
 type Notification = {
@@ -12,7 +12,7 @@ type Notification = {
   created_at: string;
 };
 
-export default function NotificationsPage({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+export default function NotificationsPage({ onNavigate, onClose }: { onNavigate?: (tab: string) => void; onClose?: () => void }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +36,9 @@ export default function NotificationsPage({ onNavigate }: { onNavigate?: (tab: s
       setNotifications(items => items.map(item => item.id === note.id ? { ...item, is_read: 1 } : item));
     }
     if (note.action_link && onNavigate) {
-      onNavigate(note.action_link.replace(/^\//, ''));
+      const target = new URL(note.action_link, window.location.origin);
+      window.history.replaceState({}, '', `${target.pathname}${target.search}`);
+      onNavigate(target.pathname.replace(/^\//, '') || 'dashboard');
     }
   };
 
@@ -52,10 +54,13 @@ export default function NotificationsPage({ onNavigate }: { onNavigate?: (tab: s
           <p className="text-[10px] font-bold text-[#003399] uppercase tracking-[0.2em]">Notification center</p>
           <h2 className="text-2xl font-extrabold text-slate-900 mt-1">Your updates</h2>
         </div>
-        <button onClick={markAllRead} disabled={!notifications.some(note => !note.is_read)}
-          className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 flex items-center gap-2">
-          <CheckCheck className="w-4 h-4" /> Mark all read
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={markAllRead} disabled={!notifications.some(note => !note.is_read)}
+            className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 flex items-center gap-2">
+            <CheckCheck className="w-4 h-4" /> Mark all read
+          </button>
+          {onClose && <button onClick={onClose} aria-label="Close notifications" className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 flex items-center justify-center"><X className="w-4 h-4" /></button>}
+        </div>
       </div>
 
       {loading && <div className="py-20 text-center text-sm font-semibold text-slate-400">Loading notifications…</div>}
