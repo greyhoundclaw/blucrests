@@ -687,8 +687,8 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                   <p className="text-sm text-slate-500 mb-6">Now create the four-digit login code you’ll use after your password whenever you sign in.</p>
                   {error && <div className="mb-4 p-3 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold">{error}</div>}
                   <form onSubmit={completeRegistrationLoginCode} className="space-y-4">
-                    <div><label className="form-label">Create 4-digit login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCode} onChange={e => setRegLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" placeholder="••••" required autoFocus /></div>
-                    <div><label className="form-label">Confirm login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCodeConfirmation} onChange={e => setRegLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" placeholder="••••" required /></div>
+                    <div><label className="form-label">Create 4-digit login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCode} onChange={e => setRegLoginCode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" required autoFocus /></div>
+                    <div><label className="form-label">Confirm login code</label><input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={regLoginCodeConfirmation} onChange={e => setRegLoginCodeConfirmation(e.target.value.replace(/\D/g, '').slice(0, 4))} className="field-control text-center tracking-[0.5em] text-lg" required /></div>
                     <button disabled={isLoading || regLoginCode.length !== 4 || regLoginCodeConfirmation.length !== 4} className="w-full h-14 rounded-xl bg-[#003399] text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50">{isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <>Create Login Code <ArrowRight className="w-5 h-5"/></>}</button>
                   </form>
                   <button type="button" onClick={() => { setView('login'); setStep(1); setError(''); setSuccessMsg('Finish setting up your login code after signing in.'); }} className="w-full mt-5 text-xs font-bold text-slate-400">Finish later and sign in</button>
@@ -725,7 +725,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="text" 
                             value={regFirstName}
                             onChange={(e) => setRegFirstName(e.target.value)}
-                            placeholder="John"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />
@@ -741,7 +740,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="text" 
                             value={regLastName}
                             onChange={(e) => setRegLastName(e.target.value)}
-                            placeholder="Doe"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />
@@ -757,7 +755,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="text" 
                             value={regUsername}
                             onChange={(e) => setRegUsername(e.target.value)}
-                            placeholder="johndoe12"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />
@@ -773,7 +770,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="email" 
                             value={regEmail}
                             onChange={(e) => setRegEmail(e.target.value)}
-                            placeholder="john@example.com"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />
@@ -789,7 +785,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="tel" 
                             value={regPhone}
                             onChange={(e) => setRegPhone(e.target.value)}
-                            placeholder="+1 (555) 019-3820"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />
@@ -805,7 +800,6 @@ export default function LoginPage({ onLogin, lang, onLanguageChange }: LoginPage
                             type="password" 
                             value={regPassword}
                             onChange={(e) => setRegPassword(e.target.value)}
-                            placeholder="••••••••"
                             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 text-xs font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                             required
                           />

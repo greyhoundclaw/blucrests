@@ -202,7 +202,6 @@ export default function TransferPage({
                   type="text" 
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value.replace(/[^\w-]/g, ''))}
-                  placeholder={isSameBank ? "e.g. 1000000002" : "e.g. US234839482938"}
                   className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 text-sm font-semibold outline-none transition-all"
                   required
                 />
@@ -219,7 +218,6 @@ export default function TransferPage({
                     type="text" 
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
-                    placeholder="e.g. Chase Bank" 
                     className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 text-sm font-semibold outline-none transition-all"
                     required
                   />
@@ -246,11 +244,7 @@ export default function TransferPage({
                     <div className="text-xs font-bold text-rose-500 italic uppercase tracking-wider">
                       {lookupError}
                     </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 font-semibold italic">
-                      Enter account number to search...
-                    </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -262,7 +256,6 @@ export default function TransferPage({
                     type="text" 
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
-                    placeholder="e.g. John Doe" 
                     className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 text-sm font-semibold outline-none transition-all"
                     required
                   />
@@ -280,7 +273,6 @@ export default function TransferPage({
                     type="text" 
                     value={swiftCode}
                     onChange={(e) => setSwiftCode(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
-                    placeholder="e.g. CHASUS33XXX" 
                     className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 text-sm font-semibold outline-none transition-all uppercase"
                     required
                   />
@@ -298,7 +290,6 @@ export default function TransferPage({
                     type="text" 
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                    placeholder="e.g. United Kingdom" 
                     className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 text-sm font-semibold outline-none transition-all"
                     required
                   />
@@ -315,7 +306,6 @@ export default function TransferPage({
                   type="number" 
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00" 
                   step="any"
                   className="w-full h-14 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-10 pr-4 text-sm font-semibold outline-none transition-all"
                   required
@@ -332,7 +322,6 @@ export default function TransferPage({
               <textarea 
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What is this for?"
                 className="w-full h-32 bg-slate-50 border border-slate-100 focus:bg-white focus:border-blue-100 rounded-2xl pl-12 pr-4 py-5 text-sm font-semibold outline-none transition-all resize-none"
               />
             </div>
