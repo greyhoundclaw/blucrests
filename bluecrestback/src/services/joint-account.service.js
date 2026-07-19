@@ -51,6 +51,63 @@ async function findInvitee(data) {
     return { type, identifier, user: (await db.query(`SELECT * FROM users WHERE ${where} LIMIT 1`, params))[0] || null };
 }
 
+function invitationMatchesUser(invitation, user) {
+    const normalize = value => String(value || '').trim().toLowerCase();
+    const customerIdentifiers = new Set([
+        normalize(user.id),
+        normalize(user.account_number)
+    ].filter(Boolean));
+    return (
+        (invitation.email && normalize(invitation.email) === normalize(user.email)) ||
+        (invitation.phone && normalize(invitation.phone) === normalize(user.phone)) ||
+        (invitation.username && normalize(invitation.username) === normalize(user.username)) ||
+        (invitation.customer_id && customerIdentifiers.has(normalize(invitation.customer_id)))
+    );
+}
+
+async function linkInvitationsAndOwnership(userId) {
+    const user = (await db.query(`SELECT * FROM users WHERE id = ?`, [userId]))[0];
+    if (!user) throw new Error('User not found');
+
+    const unclaimed = await db.query(`
+        SELECT * FROM joint_account_invitations
+        WHERE invitee_user_id IS NULL AND status IN ('PENDING', 'ACCEPTED')
+    `);
+    for (const invitation of unclaimed) {
+        if (invitationMatchesUser(invitation, user)) {
+            await db.query(`
+                UPDATE joint_account_invitations
+                SET invitee_user_id = ?
+                WHERE id = ? AND invitee_user_id IS NULL
+            `, [user.id, invitation.id]);
+        }
+    }
+
+    const accepted = await db.query(`
+        SELECT ji.* FROM joint_account_invitations ji
+        JOIN accounts a ON a.id = ji.account_id
+        WHERE ji.invitee_user_id = ? AND ji.status = 'ACCEPTED' AND a.account_kind = 'JOINT'
+    `, [user.id]);
+    for (const invitation of accepted) {
+        const owner = (await db.query(`
+            SELECT * FROM account_owners WHERE account_id = ? AND user_id = ?
+        `, [invitation.account_id, user.id]))[0];
+        if (owner) {
+            if (owner.status !== 'ACCEPTED' || owner.role !== 'JOINT_OWNER') {
+                await db.query(`
+                    UPDATE account_owners SET status = 'ACCEPTED', role = 'JOINT_OWNER' WHERE id = ?
+                `, [owner.id]);
+            }
+        } else {
+            await db.query(`
+                INSERT INTO account_owners (account_id, user_id, role, status)
+                VALUES (?, ?, 'JOINT_OWNER', 'ACCEPTED')
+            `, [invitation.account_id, user.id]);
+        }
+    }
+    return user;
+}
+
 async function createInvitation(accountId, inviter, data) {
     const account = await accountForOwner(accountId, inviter.id, true);
     const { type, identifier, user } = await findInvitee(data);
@@ -114,6 +171,7 @@ async function openJointAccount(user, data) {
 }
 
 async function getDashboard(userId) {
+    await linkInvitationsAndOwnership(userId);
     await db.query(`UPDATE joint_account_invitations SET status = 'EXPIRED' WHERE status = 'PENDING' AND expires_at < ?`, [new Date().toISOString()]);
     const accounts = await db.query(`
         SELECT a.*, ao.role AS owner_role, ao.status AS owner_status,
@@ -157,6 +215,7 @@ async function respondToInvitation(invitationId, user, status) {
     const responseStatus = String(status).toUpperCase();
     if (!['ACCEPTED', 'DECLINED'].includes(responseStatus)) throw new Error('Invalid invitation response');
     return db.withTransaction(async () => {
+        await linkInvitationsAndOwnership(user.id);
         const invitation = (await db.query(`SELECT * FROM joint_account_invitations WHERE id = ? AND invitee_user_id = ?`, [invitationId, user.id]))[0];
         if (!invitation) throw new Error('Invitation not found');
         if (invitation.status !== 'PENDING') throw new Error(`Invitation is already ${invitation.status.toLowerCase()}`);
@@ -169,6 +228,8 @@ async function respondToInvitation(invitationId, user, status) {
         }
         await db.query(`UPDATE joint_account_invitations SET status = ?, responded_at = ? WHERE id = ?`, [responseStatus, new Date().toISOString(), invitation.id]);
         if (responseStatus === 'ACCEPTED') {
+            const account = (await db.query(`SELECT * FROM accounts WHERE id = ?`, [invitation.account_id]))[0];
+            if (!account || account.account_kind !== 'JOINT') throw new Error('Joint account not found');
             const owner = (await db.query(`SELECT * FROM account_owners WHERE account_id = ? AND user_id = ?`, [invitation.account_id, user.id]))[0];
             if (owner) await db.query(`UPDATE account_owners SET status = 'ACCEPTED', role = 'JOINT_OWNER' WHERE id = ?`, [owner.id]);
             else await db.query(`INSERT INTO account_owners (account_id, user_id, role, status) VALUES (?, ?, 'JOINT_OWNER', 'ACCEPTED')`, [invitation.account_id, user.id]);

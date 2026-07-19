@@ -20,6 +20,7 @@ const depositRoutes = require('../src/routes/deposit.routes');
 let primary;
 let coOwner;
 let jointAccount;
+let laterInvitee;
 
 test.before(async () => {
     await initializeDatabase();
@@ -68,6 +69,51 @@ test('joint invitation acceptance gives both owners the same account data', asyn
     assert.equal(primaryJoint.account_number, coOwnerJoint.account_number);
     assert.equal(Number(primaryJoint.owner_count), 2);
     assert.equal(Number(coOwnerJoint.owner_count), 2);
+});
+
+test('an email invitation is claimed after the invitee registers and joins both owners', async () => {
+    const email = 'later-owner@example.com';
+    const opened = await jointAccountService.openJointAccount(primary, {
+        account_type: 'SAVINGS', identifier_type: 'EMAIL', invite_identifier: email
+    });
+    assert.equal(opened.invitation.invitee_user_id, null);
+
+    laterInvitee = await userService.registerUser({
+        first_name: 'Katherine', last_name: 'Later', username: 'katherine-later',
+        email, phone: '+15550000003', password: 'Password123!',
+        preferred_currency: 'USD', account_type: 'CHECKING'
+    });
+    await db.query(`UPDATE users SET kyc_status = 'VERIFIED' WHERE id = ?`, [laterInvitee.id]);
+    laterInvitee.kyc_status = 'VERIFIED';
+
+    const beforeAcceptance = await jointAccountService.getDashboard(laterInvitee.id);
+    const claimed = beforeAcceptance.received_invitations.find(item => item.id === opened.invitation.id);
+    assert.equal(Number(claimed.invitee_user_id), Number(laterInvitee.id));
+
+    await jointAccountService.respondToInvitation(opened.invitation.id, laterInvitee, 'ACCEPTED');
+    const primaryView = await jointAccountService.getDashboard(primary.id);
+    const inviteeView = await jointAccountService.getDashboard(laterInvitee.id);
+    const primaryJoint = primaryView.accounts.find(account => account.id === opened.account.id);
+    const inviteeJoint = inviteeView.accounts.find(account => account.id === opened.account.id);
+    assert.equal(primaryJoint.account_number, inviteeJoint.account_number);
+    assert.equal(Number(primaryJoint.owner_count), 2);
+    assert.equal(Number(inviteeJoint.owner_count), 2);
+});
+
+test('an accepted invitation repairs a missing joint-owner link', async () => {
+    const invitation = (await db.query(`
+        SELECT * FROM joint_account_invitations
+        WHERE invitee_user_id = ? AND status = 'ACCEPTED' ORDER BY id DESC
+    `, [laterInvitee.id]))[0];
+    await db.query(`DELETE FROM account_owners WHERE account_id = ? AND user_id = ?`, [invitation.account_id, laterInvitee.id]);
+
+    const repairedView = await jointAccountService.getDashboard(laterInvitee.id);
+    assert.ok(repairedView.accounts.some(account => account.id === invitation.account_id));
+    const owner = (await db.query(`
+        SELECT * FROM account_owners WHERE account_id = ? AND user_id = ?
+    `, [invitation.account_id, laterInvitee.id]))[0];
+    assert.equal(owner.status, 'ACCEPTED');
+    assert.equal(owner.role, 'JOINT_OWNER');
 });
 
 test('a shared ledger entry is visible to both owners with performer attribution', async () => {
