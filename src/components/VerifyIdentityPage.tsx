@@ -9,7 +9,7 @@ interface VerifyIdentityPageProps {
 }
 
 export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }: VerifyIdentityPageProps) {
-  const [docNumber, setDocNumber] = useState(user.kycDocumentId || '');
+  const [docNumber, setDocNumber] = useState(user.government_id_number || user.kycDocumentId || '');
   const [frontImage, setFrontImage] = useState<string | null>(user.kycFrontImage || null);
   const [backImage, setBackImage] = useState<string | null>(user.kycBackImage || null);
   
@@ -75,8 +75,10 @@ export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!docNumber) {
-      setErrorMsg('Please enter your Government ID or Document Number.');
+    const normalizedSsn = docNumber.trim();
+
+    if (!normalizedSsn) {
+      setErrorMsg('Please enter your SSN.');
       return;
     }
 
@@ -96,7 +98,7 @@ export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          SSN: docNumber,
+          government_id_number: normalizedSsn,
           id_front_image: frontImage,
           id_back_image: backImage
         })
@@ -198,10 +200,10 @@ export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }
         {currentKycStatus !== 'VERIFIED' && (
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Government ID Field */}
+            {/* SSN Field */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">
-                Government ID / Passport / National ID Number
+                SSN
               </label>
               <div className="relative">
                 <FileText className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
@@ -209,7 +211,8 @@ export default function VerifyIdentityPage({ user, onKycSubmitted, lang = 'en' }
                   type="text"
                   value={docNumber}
                   onChange={(e) => setDocNumber(e.target.value)}
-                  placeholder="e.g. US-818293910"
+                  placeholder="XXX-XX-XXXX"
+                  autoComplete="off"
                   className="w-full h-14 bg-slate-50 border border-slate-100 rounded-xl pl-12 pr-4 text-sm font-semibold focus:bg-white focus:border-blue-200 outline-none transition-all"
                   required
                 />

@@ -274,12 +274,16 @@ async function submitKyc(
     data
 ) {
 
+    const governmentIdNumber = String(
+        data.government_id_number || data.SSN || data.ssn || ''
+    ).trim();
+
     if (
-        !data.government_id_number
+        !governmentIdNumber
     ) {
 
         throw new Error(
-            'Government ID number is required'
+            'SSN is required'
         );
     }
 
@@ -304,7 +308,10 @@ async function submitKyc(
     return await userRepository
         .submitKyc(
             userId,
-            data
+            {
+                ...data,
+                government_id_number: governmentIdNumber
+            }
         );
 }
 
