@@ -157,8 +157,11 @@ export default function DashboardOverview({
       {/* Top Row: Balance & Card */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Balance Card */}
-        <div className="flex-1 bg-[#003399] rounded-[2.5rem] border border-white/10 shadow-2xl p-6 md:p-10 flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="dashboard-balance-card flex-1 bg-[#003399] rounded-[2.5rem] border border-white/10 shadow-2xl p-6 md:p-10 flex flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="dashboard-orbit dashboard-orbit-primary" aria-hidden="true" />
+          <div className="dashboard-orbit dashboard-orbit-secondary" aria-hidden="true" />
+          <div className="dashboard-glow-orb" aria-hidden="true" />
           <div className="relative z-10">
             <p className="text-[10px] md:text-sm text-blue-200/60 mb-2 font-bold uppercase tracking-widest">Total Balance</p>
             <h2 className="text-4xl md:text-6xl font-bold tracking-tighter">
