@@ -27,6 +27,7 @@ export interface UserProfile {
   state: string;
   city: string;
   balance: number;
+  savingsBalance?: number;
   gender: string;
   occupation: string;
   address: string;

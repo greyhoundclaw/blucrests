@@ -59,6 +59,8 @@ export default function DashboardOverview({
   const transferFlow = String(activeUser.transfer_flow || activeUser.transferFlow || 'ACTIVE').toUpperCase();
   const restricted = accountState !== 'ACTIVE' || ['RESTRICTED', 'AUTHORIZATION_HOLD'].includes(transferFlow);
   const accountType = String(activeUser.account_type || activeUser.accountType || 'CHECKING').replaceAll('_', ' ');
+  const checkingBalance = Number(balance || 0);
+  const savingsBalance = Number(activeUser.savings_balance ?? activeUser.savingsBalance ?? 0);
   const [currentLoanAmount, setCurrentLoanAmount] = useState(0);
   const preferredCurrency = (
     activeUser.preferred_currency ||
@@ -158,10 +160,20 @@ export default function DashboardOverview({
         <div className="flex-1 bg-[#003399] rounded-[2.5rem] border border-white/10 shadow-2xl p-6 md:p-10 flex flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="relative z-10">
-            <p className="text-[10px] md:text-sm text-blue-200/60 mb-2 font-bold uppercase tracking-widest">Available Balance</p>
+            <p className="text-[10px] md:text-sm text-blue-200/60 mb-2 font-bold uppercase tracking-widest">Total Balance</p>
             <h2 className="text-4xl md:text-6xl font-bold tracking-tighter">
-              {formatCurrency(balance)}
+              {formatCurrency(checkingBalance + savingsBalance)}
             </h2>
+            <div className="mt-6 grid max-w-xl grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-blue-200/70">Checking</p>
+                <p className="mt-1 text-lg font-extrabold tracking-tight">{formatCurrency(checkingBalance)}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-blue-200/70">Savings</p>
+                <p className="mt-1 text-lg font-extrabold tracking-tight">{formatCurrency(savingsBalance)}</p>
+              </div>
+            </div>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-widest">{accountType} Account</span>
               <span className="text-[10px] font-semibold tracking-[0.14em] text-blue-100">Account •••• {String(activeUser.account_number || activeUser.accountNumber || '').slice(-4)}</span>
@@ -213,7 +225,7 @@ export default function DashboardOverview({
             <div className="absolute -right-10 -bottom-12 w-36 h-36 rounded-full bg-white/10" />
             <div className="relative">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100">Eligible Loan Amount</p>
-              <p className="mt-3 text-3xl font-extrabold tracking-tight">{formatCurrency(250000)}</p>
+              <p className="mt-3 text-3xl font-extrabold tracking-tight">{formatCurrency(1500)}</p>
               <button
                 onClick={() => onActionClick('loans')}
                 className="mt-3 text-[10px] font-bold uppercase tracking-widest text-white/90 hover:text-white"

@@ -252,6 +252,7 @@ async function updateUserProfile(req, res, body, userId) {
         const isAdmin = req.user && (req.user.role === 'ADMIN' || req.user.role === 'Admin');
         if (!isAdmin) {
             delete body.balance;
+            delete body.savings_balance;
             delete body.role;
             delete body.status;
             delete body.transfer_flow;

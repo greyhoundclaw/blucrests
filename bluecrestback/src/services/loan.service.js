@@ -13,6 +13,16 @@ async function createLoan(
     data
 ) {
 
+    const requestedAmount = Number(data.requested_amount);
+
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+        throw new Error('Loan amount must be greater than 0');
+    }
+
+    if (requestedAmount > 1500) {
+        throw new Error('Eligible loan amount cannot exceed 1,500');
+    }
+
     if (
         user.kyc_status !== 'VERIFIED'
     ) {
@@ -29,7 +39,7 @@ async function createLoan(
                 user.id,
 
             requested_amount:
-                data.requested_amount,
+                requestedAmount,
 
             purpose:
                 data.purpose,

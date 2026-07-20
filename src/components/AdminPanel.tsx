@@ -120,6 +120,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
   const [editPhone, setEditPhone] = useState('');
   const [editCurrency, setEditCurrency] = useState('');
   const [editBalance, setEditBalance] = useState('');
+  const [editSavingsBalance, setEditSavingsBalance] = useState('');
   const [editDob, setEditDob] = useState('');
   const [editTransferPin, setEditTransferPin] = useState('');
 
@@ -518,6 +519,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
     setEditPhone(u.phone || '');
     setEditCurrency(u.preferred_currency || u.preferredCurrency || 'USD');
     setEditBalance(u.balance?.toString() || '0');
+    setEditSavingsBalance((u.savings_balance ?? u.savingsBalance ?? 0).toString());
     setEditDob(u.date_of_birth || u.dateOfBirth || '');
     setEditTransferPin('');
   };
@@ -533,6 +535,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
         phone: editPhone,
         preferred_currency: editCurrency,
         balance: Number(editBalance),
+        savings_balance: Number(editSavingsBalance),
         date_of_birth: editDob
       };
 
@@ -1064,7 +1067,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                     <th className="pb-3">Name / Email</th>
                     <th className="pb-3">KYC Status</th>
                     <th className="pb-3">Restriction Flow</th>
-                    <th className="pb-3">Wallet Balance</th>
+                    <th className="pb-3">Account Balances</th>
                     <th className="pb-3 text-right">Administrative Actions</th>
                   </tr>
                 </thead>
@@ -1196,7 +1199,18 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                                 value={editBalance}
                                 onChange={e => setEditBalance(e.target.value)}
                                 className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold"
-                                placeholder="Balance"
+                                placeholder="Checking"
+                                title="Checking balance"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editSavingsBalance}
+                                onChange={e => setEditSavingsBalance(e.target.value)}
+                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-bold"
+                                placeholder="Savings"
+                                title="Savings balance"
                               />
                               <select
                                 value={editCurrency}
@@ -1213,7 +1227,10 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                               </select>
                             </div>
                           ) : (
-                            <span className="font-extrabold text-slate-800">{formatCurrency(u.balance)}</span>
+                            <div className="flex flex-col gap-1 text-xs">
+                              <span className="font-extrabold text-slate-800">Checking: {formatCurrency(Number(u.balance || 0))}</span>
+                              <span className="font-bold text-slate-500">Savings: {formatCurrency(Number(u.savings_balance ?? u.savingsBalance ?? 0))}</span>
+                            </div>
                           )}
                         </td>
                         <td className="py-4 text-right">

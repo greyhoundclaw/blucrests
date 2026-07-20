@@ -19,6 +19,8 @@ export interface Loan {
   createdDate: string;
 }
 
+const MAX_ELIGIBLE_LOAN = 1500;
+
 export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUserCurrency }: LoansPageProps) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [amount, setAmount] = useState('');
@@ -84,6 +86,11 @@ export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUs
 
     if (parsedAmount <= 0) {
       setErrorMsg('Please enter a valid loan amount greater than 0.');
+      return;
+    }
+
+    if (parsedAmount > MAX_ELIGIBLE_LOAN) {
+      setErrorMsg(`Your current eligible loan amount is ${formatCurrency(MAX_ELIGIBLE_LOAN)}.`);
       return;
     }
 
@@ -155,9 +162,9 @@ export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUs
           <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mb-6">
             <ShieldAlert className="w-10 h-10" />
           </div>
-          <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight mb-3">Identity Check Required Before Loans</h2>
+          <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight mb-3">Verify Your KYC to Qualify</h2>
           <p className="text-slate-500 text-sm max-w-lg mx-auto font-medium leading-relaxed mb-8">
-            Under international regulations, only users who possess a verified Tier 3 Identity profile can draw down capital reserves. Verification is digital and completes automatically within minutes.
+            Verify your KYC to qualify for a loan of up to {formatCurrency(MAX_ELIGIBLE_LOAN)} with Tier 1 deposits.
           </p>
 
           <button
@@ -183,7 +190,7 @@ export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUs
         <div className="space-y-3 shrink-0 relative z-10 text-center md:text-left">
           <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full text-xs font-semibold backdrop-blur-sm">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Liquid Line of Credit Active
+            KYC Verified · Tier 1 Eligible
           </div>
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Flexible Asset Financing</h2>
           <p className="text-blue-100/80 text-sm max-w-sm">Drawn capital carries an origination fee of 5.0% and is fully backed by real reserves.</p>
@@ -191,7 +198,7 @@ export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUs
 
         <div className="bg-white/10 border border-white/10 rounded-3xl p-6 text-center shrink-0 backdrop-blur-sm relative z-10 min-w-48">
           <p className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">Max Borrow Limit</p>
-          <p className="text-3xl font-extrabold">$250,000</p>
+          <p className="text-3xl font-extrabold">{formatCurrency(MAX_ELIGIBLE_LOAN)}</p>
           <p className="text-[10px] text-blue-200 mt-1 font-bold">5.0% Fixed APR</p>
         </div>
       </div>
@@ -230,9 +237,12 @@ export default function LoansPage({ user, onNavigateToTab, lang = 'en', formatUs
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
                 <input 
                   type="number"
+                  min="1"
+                  max={MAX_ELIGIBLE_LOAN}
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g. 50000"
+                  placeholder="Up to 1,500"
                   className="w-full h-12 bg-slate-50 border border-slate-100 rounded-xl pl-8 pr-4 text-sm font-semibold outline-none focus:bg-white focus:border-blue-200 transition-all"
                   required
                 />

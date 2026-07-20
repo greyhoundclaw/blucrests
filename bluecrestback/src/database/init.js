@@ -55,6 +55,8 @@ async function initializeDatabase() {
 
             balance REAL DEFAULT 0,
 
+            savings_balance REAL DEFAULT 0,
+
             transfer_pin TEXT,
 
             
@@ -91,6 +93,12 @@ async function initializeDatabase() {
 
     try {
         await db.query(`ALTER TABLE users ADD COLUMN account_type TEXT DEFAULT 'CHECKING'`);
+    } catch (_) {
+        // Compatibility with databases that already have this column.
+    }
+
+    try {
+        await db.query(`ALTER TABLE users ADD COLUMN savings_balance REAL DEFAULT 0`);
     } catch (_) {
         // Compatibility with databases that already have this column.
     }

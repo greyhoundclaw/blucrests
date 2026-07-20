@@ -300,6 +300,7 @@ async function updateUser(
             government_id_number = ?,
             preferred_currency = ?,
             balance = ?,
+            savings_balance = ?,
             status = ?,
             profile_image = ?,
             two_factor_enabled = ?
@@ -322,6 +323,7 @@ async function updateUser(
             data.government_id_number,
             data.preferred_currency,
             data.balance,
+            data.savings_balance,
             data.status,
             data.profile_image !== undefined ? data.profile_image : null,
             data.two_factor_enabled !== undefined ? (data.two_factor_enabled ? 1 : 0) : 0,

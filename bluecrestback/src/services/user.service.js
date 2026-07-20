@@ -356,6 +356,9 @@ async function updateUser(userId, data) {
         government_id_number: data.government_id_number !== undefined ? data.government_id_number : existing.government_id_number,
         preferred_currency: data.preferred_currency !== undefined ? data.preferred_currency : existing.preferred_currency,
         balance: existing.balance,
+        savings_balance: data.savings_balance !== undefined
+            ? Math.max(0, Number(data.savings_balance) || 0)
+            : Number(existing.savings_balance || 0),
         status: data.status !== undefined ? data.status : existing.status,
         profile_image: data.profile_image !== undefined ? data.profile_image : existing.profile_image,
         two_factor_enabled: data.two_factor_enabled !== undefined ? (data.two_factor_enabled ? 1 : 0) : existing.two_factor_enabled
