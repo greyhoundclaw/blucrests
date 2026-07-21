@@ -178,6 +178,7 @@ async function getAllUsers() {
             preferred_currency,
             account_type,
             balance,
+            savings_balance,
             transfer_pin,
             transfer_flow,
             two_factor_enabled,

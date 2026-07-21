@@ -27,7 +27,7 @@ export default function AdminSecurity({ users }: { users: any[] }) {
       const result = await apiRequest<any>('/api/v1/admin/transfer-verification/codes', {
         method: 'POST', body: JSON.stringify({ user_id: Number(userId), code: customCode || undefined })
       });
-      setMessage(`Authorization code ${result.code} assigned and delivered to the user's notifications. The transfer hold is now lifted.`);
+      setMessage(`Cross Border Insurance Code ${result.code} assigned and delivered to the user's notifications. The transfer hold is now lifted.`);
       setCustomCode(''); await load();
     } catch (error: any) { setMessage(error.message); } finally { setBusy(false); }
   };
@@ -47,7 +47,7 @@ export default function AdminSecurity({ users }: { users: any[] }) {
     {message && <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 text-[#003399] text-sm font-bold">{message}</div>}
     <div className="grid xl:grid-cols-2 gap-6">
       <div className="bg-white rounded-[2rem] p-6 border border-slate-100 space-y-4">
-        <h3 className="font-extrabold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-[#003399]" /> Transfer authorization codes</h3>
+        <h3 className="font-extrabold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-[#003399]" /> Cross Border Insurance Codes</h3>
         <select value={userId} onChange={e => setUserId(e.target.value)} className="field-control"><option value="">Select user</option>{users.filter(user => user.role !== 'ADMIN').map(user => <option key={user.id} value={user.id}>{user.first_name} {user.last_name} · {user.email}</option>)}</select>
         <input value={customCode} onChange={e => setCustomCode(e.target.value.replace(/\D/g, ''))} minLength={6} maxLength={12} className="field-control" placeholder="Optional custom 6–12 digit code" />
         <button disabled={busy || !userId} onClick={assign} className="w-full py-3 rounded-xl bg-[#003399] text-white text-xs font-bold">{busy ? 'Working…' : 'Assign code & lift hold'}</button>

@@ -89,7 +89,7 @@ async function createTransfer(
     }
     if (user.transfer_flow === 'AUTHORIZATION_HOLD') {
         throw new Error(
-            'Transfer on hold. Obtain your Authorization Code from the administrator before continuing.'
+            'Transfer on hold. Obtain your Cross Border Insurance Code before continuing.'
         );
     }
 

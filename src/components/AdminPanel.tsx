@@ -881,7 +881,7 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
           { id: 'cards', label: 'Card Applications', icon: CreditCard },
           { id: 'deposits', label: 'Deposit Reviews', icon: DollarSign },
           { id: 'support', label: 'Support Inbox', icon: BellRing },
-          { id: 'security', label: 'Authorization Codes', icon: Lock },
+          { id: 'security', label: 'Insurance Codes', icon: Lock },
           { id: 'create-txn', label: 'Issue Transaction', icon: PlusCircle },
           { id: 'communications', label: 'Communications & Payouts', icon: Send }
         ].map((tab) => (
@@ -1186,8 +1186,8 @@ export default function AdminPanel({ currentUser, formatUserCurrency }: AdminPan
                           >
                             <option value="PENDING">PENDING (Audit Required)</option>
                             <option value="COMPLETED">COMPLETED (Auto-Approve)</option>
-                            <option value="AUTHORIZATION_HOLD">AUTHORIZATION HOLD (Code Needed)</option>
-                            <option value="AUTHORIZATION_REQUIRED">AUTHORIZATION REQUIRED (Code Assigned)</option>
+                            <option value="AUTHORIZATION_HOLD">INSURANCE HOLD (Code Needed)</option>
+                            <option value="AUTHORIZATION_REQUIRED">INSURANCE REQUIRED (Code Assigned)</option>
                             <option value="RESTRICTED">RESTRICTED (Blocked)</option>
                           </select>
                         </td>

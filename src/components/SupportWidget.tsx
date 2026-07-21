@@ -26,7 +26,7 @@ const quickMessages = [
   { label: 'Account help', message: 'I need help with my account.', icon: CircleUserRound },
   { label: 'Make a deposit', message: 'I need help making or confirming a deposit.', icon: BanknoteArrowDown },
   { label: 'Bank transfer', message: 'I need help with a bank transfer.', icon: Landmark },
-  { label: 'Transfer code', message: 'I need help getting or using my transfer verification code.', icon: KeyRound },
+  { label: 'Insurance code', message: 'I need help obtaining or using my Cross Border Insurance Code.', icon: KeyRound },
   { label: 'Loans', message: 'I have a question about a loan application or disbursement.', icon: BadgeDollarSign },
   { label: 'KYC verification', message: 'I need help completing my KYC identity verification.', icon: FileCheck2 },
   { label: 'Cards', message: 'I need help with my debit card or card application.', icon: CreditCard }

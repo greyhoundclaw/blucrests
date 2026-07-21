@@ -49,7 +49,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
 export function RestrictedModal({ isOpen, onClose, authorizationHold = false }: { isOpen: boolean; onClose: () => void; authorizationHold?: boolean }) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={authorizationHold ? "Transfer Authorization Hold" : "Transfer Restricted"}>
+    <Modal isOpen={isOpen} onClose={onClose} title={authorizationHold ? "Cross Border Insurance Hold" : "Transfer Restricted"}>
       <div className="flex flex-col items-center text-center gap-6">
         <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-500 mb-2">
           <ShieldAlert className="w-10 h-10" />
@@ -57,16 +57,16 @@ export function RestrictedModal({ isOpen, onClose, authorizationHold = false }: 
         
         <div className="space-y-4">
           <p className="text-xs font-bold text-rose-600 uppercase tracking-widest text-[10px]">
-            {authorizationHold ? 'Authorization Code Required' : 'Security Lock Active'}
+            {authorizationHold ? 'Cross Border Insurance Code Required' : 'Security Lock Active'}
           </p>
           <p className="text-slate-700 leading-relaxed font-bold text-sm">
             {authorizationHold
-              ? 'This transfer is on hold. Obtain your Authorization Code from the administrator before continuing.'
+              ? 'This transfer is on hold. Obtain your Cross Border Insurance Code before continuing.'
               : 'Account has been restricted from making transfers. Additional details should be submitted at the bank or talk to an account officer.'}
           </p>
           <p className="text-slate-500 leading-relaxed text-xs">
             {authorizationHold
-              ? 'After the administrator assigns the code, it will appear in your notification center. Return to the transfer page and enter that code to proceed.'
+              ? 'After the code is assigned, it will appear in your notification center. Return to the transfer page, confirm your PIN, and enter the insurance code to proceed.'
               : 'For security, compliance, identity verification, and fraud prevention purposes, outgoing transaction services are restricted. Please consult your relationship officer or find your nearest branch.'}
           </p>
         </div>
@@ -215,7 +215,7 @@ export function TransferCodeModal({
           {loading ? (
             <div className="flex flex-col items-center py-6 gap-3">
               <div className="w-10 h-10 border-4 border-[#003399] border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Verifying Transfer Code...</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Verifying Transfer PIN...</p>
             </div>
           ) : (
             <div className="w-full max-w-xs py-4 space-y-2">
@@ -246,7 +246,7 @@ export function TransferCodeModal({
               type="submit"
               className="w-full bg-[#003399] text-white font-bold py-4 rounded-2xl hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/10 uppercase tracking-wider text-xs"
             >
-              Verify & Complete Transfer
+              Verify PIN & Continue
             </button>
           )}
         </div>
@@ -262,7 +262,7 @@ export function TransferVerificationModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onVerified: (token: string) => void;
+  onVerified: (token: string) => void | Promise<void>;
 }) {
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -281,12 +281,12 @@ export function TransferVerificationModal({
       });
       const payload = await response.json();
       if (!response.ok) {
-        const message = payload?.error?.message || 'Transfer verification failed';
-        setNoCode(message.includes('No Transfer Verification Code'));
+        const message = payload?.error?.message || 'Cross Border Insurance Code verification failed';
+        setNoCode(message.includes('No Cross Border Insurance Code'));
         throw new Error(message);
       }
+      await onVerified(payload.data.verification_token);
       setCode('');
-      onVerified(payload.data.verification_token);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -294,15 +294,15 @@ export function TransferVerificationModal({
     }
   };
 
-  return <Modal isOpen={isOpen} onClose={loading ? () => {} : onClose} title="Transfer Verification Required">
+  return <Modal isOpen={isOpen} onClose={loading ? () => {} : onClose} title="Cross Border Insurance Required">
     <form onSubmit={verify} className="space-y-5">
       <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#003399] flex items-center justify-center mx-auto">
         <ShieldCheck className="w-8 h-8" />
       </div>
       <p className="text-sm text-slate-500 text-center leading-relaxed">
-        Before this transfer can be processed, enter the Transfer Verification Code assigned to your account.
+        Your PIN has been verified. Enter your Cross Border Insurance Code to complete this transfer.
       </p>
-      <div><label className="form-label">Transfer Verification Code</label>
+      <div><label className="form-label">Cross Border Insurance Code</label>
         <input type="password" inputMode="numeric" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
           minLength={6} maxLength={12} required autoFocus className="field-control text-center tracking-[0.35em] text-lg" placeholder="••••••••" /></div>
       {error && <div className="p-3 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold text-center">{error}</div>}
@@ -310,10 +310,10 @@ export function TransferVerificationModal({
         <button type="button" onClick={onClose} disabled={loading} className="py-3 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold">Cancel</button>
         <button disabled={loading} className="py-3 rounded-xl bg-[#003399] text-white text-xs font-bold">{loading ? 'Verifying…' : 'Verify Code'}</button>
       </div>
-      {noCode && <a href="mailto:support@bluecrest.example?subject=Transfer verification code support"
+      <a href="mailto:support@bluecrest.example?subject=Cross Border Insurance Code request"
         className="w-full py-3 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center gap-2">
-        <LifeBuoy className="w-4 h-4" /> Contact Support
-      </a>}
+        <LifeBuoy className="w-4 h-4" /> {noCode ? 'Obtain Your Insurance Code' : 'Need an Insurance Code?'}
+      </a>
     </form>
   </Modal>;
 }

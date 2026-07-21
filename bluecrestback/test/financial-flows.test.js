@@ -17,6 +17,7 @@ const transferRepository = require('../src/repositories/transfer.repository');
 const transactionRepository = require('../src/repositories/transaction.repository');
 const loanRepository = require('../src/repositories/loan.repository');
 const transferService = require('../src/services/transfer.service');
+const transferVerificationService = require('../src/services/transfer-verification.service');
 const userService = require('../src/services/user.service');
 const ledgerService = require('../src/services/ledger.service');
 const loanService = require('../src/services/loan.service');
@@ -122,6 +123,31 @@ test('invalid transfer PIN creates no transfer or ledger entry', async () => {
 
     assert.equal((await transferRepository.getUserTransfers(sender.id)).length, beforeTransfers.length);
     assert.equal((await transactionRepository.getUserTransactions(sender.id)).length, beforeTransactions.length);
+});
+
+test('cross-border insurance flow verifies the transfer PIN before requesting its code', async () => {
+    const sender = await userRepository.findUserById(2);
+
+    await assert.rejects(
+        transferVerificationService.verifyPin(sender, '9999'),
+        /Invalid transfer PIN/
+    );
+    assert.deepEqual(
+        await transferVerificationService.verifyPin(sender, '1234'),
+        { verified: true }
+    );
+});
+
+test('admin savings balance persists, is returned in user lists, and does not change checking balance', async () => {
+    const before = await userRepository.findUserById(2);
+    await userService.updateUser(2, { savings_balance: 2750.50 });
+
+    const saved = await userRepository.findUserById(2);
+    const listed = (await userService.fetchUsers()).find(user => Number(user.id) === 2);
+
+    assert.equal(Number(saved.savings_balance), 2750.50);
+    assert.equal(Number(listed.savings_balance), 2750.50);
+    assert.equal(Number(saved.balance), Number(before.balance));
 });
 
 test('invalid or unaffordable transfer amounts create no ledger entry', async () => {

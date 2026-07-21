@@ -122,7 +122,7 @@ useEffect(() => {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isTransferCodeModalOpen, setIsTransferCodeModalOpen] = useState(false);
   const [isTransferVerificationOpen, setIsTransferVerificationOpen] = useState(false);
-  const [transferVerificationToken, setTransferVerificationToken] = useState('');
+  const [authorizedTransferPin, setAuthorizedTransferPin] = useState('');
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -320,7 +320,7 @@ useEffect(() => {
     }
   }, []);
 
-  const handleVerifyTransferCode = useCallback(async (pin: string) => {
+  const submitTransfer = useCallback(async (pin: string, verificationToken = '') => {
     if (!pendingTransfer || !currentUser) return;
 
     const token = localStorage.getItem('auth_token');
@@ -337,8 +337,8 @@ useEffect(() => {
         recipient_bank: pendingTransfer.bankName,
         amount: pendingTransfer.amount,
         description: pendingTransfer.description,
-        pin: pin
-        ,verification_token: transferVerificationToken
+        pin,
+        verification_token: verificationToken
       })
     });
 
@@ -365,8 +365,34 @@ useEffect(() => {
     syncUserData();
 
     setIsTransferCodeModalOpen(false);
+    setIsTransferVerificationOpen(false);
+    setAuthorizedTransferPin('');
     setIsSuccessModalOpen(true);
-  }, [pendingTransfer, currentUser, syncUserData, transferVerificationToken]);
+  }, [pendingTransfer, currentUser, syncUserData]);
+
+  const handleVerifyTransferPin = useCallback(async (pin: string) => {
+    const transferFlow = currentUser.transferFlow || currentUser.transfer_flow;
+    if (transferFlow !== 'AUTHORIZATION_REQUIRED') {
+      await submitTransfer(pin);
+      return;
+    }
+
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch('/api/v1/transfer-verification/verify-pin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ pin })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.error?.message || 'Invalid transfer PIN');
+
+    setAuthorizedTransferPin(pin);
+    setIsTransferCodeModalOpen(false);
+    setIsTransferVerificationOpen(true);
+  }, [currentUser, submitTransfer]);
 
 
   const saveUser = (user) => {
@@ -499,9 +525,9 @@ setIsLoggedIn(true);
                 });
 
                 if (transferFlow === 'AUTHORIZATION_REQUIRED') {
-                  setIsTransferVerificationOpen(true);
+                  setAuthorizedTransferPin('');
+                  setIsTransferCodeModalOpen(true);
                 } else {
-                  setTransferVerificationToken('');
                   setIsTransferCodeModalOpen(true);
                 }
               }
@@ -653,7 +679,7 @@ return updated;
       <TransferCodeModal
         isOpen={isTransferCodeModalOpen}
         onClose={() => setIsTransferCodeModalOpen(false)}
-        onVerify={handleVerifyTransferCode}
+        onVerify={handleVerifyTransferPin}
         amount={pendingTransfer?.amount || 0}
         userPin={currentUser.transferPin}
         formatUserCurrency={formatUserCurrency}
@@ -663,12 +689,11 @@ return updated;
         isOpen={isTransferVerificationOpen}
         onClose={() => {
           setIsTransferVerificationOpen(false);
+          setAuthorizedTransferPin('');
           setPendingTransfer(null);
         }}
-        onVerified={(token) => {
-          setTransferVerificationToken(token);
-          setIsTransferVerificationOpen(false);
-          setIsTransferCodeModalOpen(true);
+        onVerified={async (token) => {
+          await submitTransfer(authorizedTransferPin, token);
         }}
       />
 

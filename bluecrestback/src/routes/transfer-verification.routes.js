@@ -5,6 +5,10 @@ const service = require('../services/transfer-verification.service');
 
 async function transferVerificationRoutes(req, res, body) {
     try {
+        if (req.url === '/api/v1/transfer-verification/verify-pin' && req.method === 'POST') {
+            if (!await requireAuth(req, res)) return true;
+            return successResponse(res, await service.verifyPin(req.user, body.pin), 'Transfer PIN verified');
+        }
         if (req.url === '/api/v1/transfer-verification/verify' && req.method === 'POST') {
             if (!await requireAuth(req, res)) return true;
             return successResponse(res, await service.verify(
